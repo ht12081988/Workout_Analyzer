@@ -1,0 +1,20 @@
+# Block node_modules at every level completely
+node_modules
+**/node_modules
+**/node_modules/*
+
+# Block build targets and caches across the monorepo
+.next
+**/.next
+.turbo
+**/.turbo
+.vercel
+out
+dist
+
+# Block local database files, logs, and dumps
+*.bak
+*.sql
+*.dump
+.data
+**/.data

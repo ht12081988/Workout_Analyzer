@@ -1,0 +1,2 @@
+"id","min_interval_ms","phrase_cooldown_ms","reinforcement_probability","speech_rate","speech_pitch","positive_reinforcements","created_at","updated_at"
+"global",2200,4000,0.70,1.05,1.00,"{""Perfect form!"",""Excellent depth!"",""Great repp!"",""Spot on!"",""Nice job!"",""Keep it up!"",""Amazing control!""}","2026-05-19 14:04:55.964538+05:30","2026-05-19 14:04:55.964538+05:30"

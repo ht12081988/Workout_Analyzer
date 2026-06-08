@@ -1,0 +1,5 @@
+"id","name","description","category","subcategory","image_path","video_path","status","created_at"
+"939b9a3f-1359-4c07-b735-2a3676f38942","Squats","Stand shoulder-width apart, brace your core, drive hips back, and keep knees tracking over your toes through each rep.","Lower Body","Squat","/exercises/squats.svg",NULL,True,"2026-05-08 12:37:17.889506+05:30"
+"e01dde30-2d18-4d02-b152-6046f203f30b","Pile Squats","Take a wide stance with toes turned out, lower straight down, and keep your chest tall while knees follow the toe line.","Lower Body","Squat","/exercises/pile-squats.svg",NULL,True,"2026-05-08 12:37:17.900103+05:30"
+"00c666f5-f15a-4b9e-833f-98fd4dcbf3dc","Standing Calf Raise","Stand tall, rise through the balls of your feet, pause at the top, and lower slowly without rolling the ankles.","Lower Body","Calf Raise","/exercises/standing-calf-raise.svg",NULL,True,"2026-05-08 12:37:17.906499+05:30"
+"1c49ace3-cfa8-46d6-a96d-216fee9774e3","Split Lunges","Step forward with control, keep the front knee stacked above the ankle, and maintain a tall torso as you return.","Lower Body","Lunge","/exercises/lunges.svg",NULL,True,"2026-05-08 12:37:17.904004+05:30"

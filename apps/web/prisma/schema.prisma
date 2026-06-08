@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model customers {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email            String             @unique
+  name             String?
+  password         String
+  created_at       DateTime?          @default(now()) @db.Timestamptz(6)
+  last_login       DateTime?          @db.Timestamptz(6)
+  workout_sessions workout_sessions[]
+}
+
+model exercise_pose_rules {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercise_id      String?    @db.Uuid
+  rule_name        String?    @db.VarChar(255)
+  rule_type        String?    @db.VarChar(100)
+  threshold_value  Json?
+  feedback_message String?
+  severity         String?    @db.VarChar(50)
+  created_at       DateTime?  @default(now()) @db.Timestamptz(6)
+  exercise_name    String?    @db.VarChar(255)
+  exercises        exercises? @relation(fields: [exercise_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([exercise_id, rule_name])
+}
+
+model exercises {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String?               @unique(map: "exercises_name_unique") @db.VarChar(255)
+  description         String?
+  category            String?               @db.VarChar(100)
+  subcategory         String?               @db.VarChar(100)
+  image_path          String?               @db.VarChar(255)
+  video_path          String?               @db.VarChar(255)
+  status              Boolean?              @default(true)
+  created_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  camera_angle        String?               @db.VarChar(50)
+  exercise_pose_rules exercise_pose_rules[]
+  voice_cues          voice_cues[]
+  workout_attempts    workout_attempts[]
+  workout_sessions    workout_sessions[]
+}
+
+model tracking_configs {
+  id               String    @id @default("global") @db.VarChar(50)
+  model_type       String?   @default("full") @db.VarChar(50)
+  ui_smoothing     Decimal?  @default(0.3) @db.Decimal(5, 4)
+  engine_smoothing Decimal?  @default(0.0) @db.Decimal(5, 4)
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model voice_configs {
+  id                        String    @id @default("global") @db.VarChar(50)
+  min_interval_ms           Int       @default(2200)
+  phrase_cooldown_ms        Int       @default(4000)
+  reinforcement_probability Decimal   @default(0.70) @db.Decimal(3, 2)
+  speech_rate               Decimal   @default(1.05) @db.Decimal(3, 2)
+  speech_pitch              Decimal   @default(1.00) @db.Decimal(3, 2)
+  positive_reinforcements   String[]  @default(["Perfect form!", "Excellent depth!", "Great repp!", "Spot on!", "Nice job!", "Keep it up!", "Amazing control!"])
+  created_at                DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model voice_cues {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercise_name String     @db.VarChar(100)
+  exercise_id   String?    @db.Uuid
+  raw_cue       String     @db.VarChar(255)
+  spoken_cue    String?    @db.VarChar(255)
+  is_active     Boolean    @default(true)
+  created_at    DateTime?  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime?  @default(now()) @db.Timestamptz(6)
+  exercises     exercises? @relation(fields: [exercise_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([exercise_id, raw_cue], map: "unique_exercise_raw_cue")
+}
+
+model voice_failure_guidance {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  failure_keyword String    @unique @db.VarChar(100)
+  spoken_advice   String    @db.VarChar(255)
+  is_active       Boolean   @default(true)
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model workout_attempts {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id       String?           @db.Uuid
+  exercise_id      String?           @db.Uuid
+  status           String?           @db.VarChar(50)
+  reason           String?
+  created_at       DateTime?         @default(now()) @db.Timestamptz(6)
+  exercises        exercises?        @relation(fields: [exercise_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  workout_sessions workout_sessions? @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model workout_deviation_logs {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id       String?           @db.Uuid
+  rep_id           String?           @db.Uuid
+  deviation_type   String?           @db.VarChar(100)
+  feedback_message String?
+  severity         String?           @db.VarChar(50)
+  frame_number     Int?
+  created_at       DateTime?         @default(now()) @db.Timestamptz(6)
+  workout_sessions workout_sessions? @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model workout_joint_angles {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id       String?           @db.Uuid
+  rep_id           String?           @db.Uuid
+  angle_name       String?           @db.VarChar(100)
+  angle_value      Decimal?          @db.Decimal(8, 2)
+  frame_number     Int?
+  created_at       DateTime?         @default(now()) @db.Timestamptz(6)
+  workout_sessions workout_sessions? @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model workout_landmark_frames {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id       String?           @db.Uuid
+  rep_id           String?           @db.Uuid
+  frame_number     Int?
+  landmarks        Json?
+  frame_type       String?           @db.VarChar(50)
+  timestamp        DateTime?         @default(now()) @db.Timestamptz(6)
+  workout_sessions workout_sessions? @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model workout_rep_logs {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  session_id       String?           @db.Uuid
+  rep_number       Int?
+  start_frame_time DateTime?         @db.Timestamptz(6)
+  top_frame_time   DateTime?         @db.Timestamptz(6)
+  end_frame_time   DateTime?         @db.Timestamptz(6)
+  quality_score    Decimal?          @db.Decimal(5, 2)
+  duration_seconds Decimal?          @db.Decimal(5, 2)
+  status           String?           @db.VarChar(50)
+  attempt_id       String?           @db.Uuid
+  workout_sessions workout_sessions? @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model workout_sessions {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id             String?                   @db.Uuid
+  exercise_id             String?                   @db.Uuid
+  start_time              DateTime?                 @default(now()) @db.Timestamptz(6)
+  end_time                DateTime?                 @db.Timestamptz(6)
+  total_reps              Int?                      @default(0)
+  average_accuracy        Decimal?                  @db.Decimal(5, 2)
+  total_duration_seconds  Int?
+  status                  String?                   @default("active") @db.VarChar(50)
+  workout_attempts        workout_attempts[]
+  workout_deviation_logs  workout_deviation_logs[]
+  workout_joint_angles    workout_joint_angles[]
+  workout_landmark_frames workout_landmark_frames[]
+  workout_rep_logs        workout_rep_logs[]
+  customers               customers?                @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  exercises               exercises?                @relation(fields: [exercise_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
