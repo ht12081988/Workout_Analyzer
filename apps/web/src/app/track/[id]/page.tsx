@@ -6,7 +6,6 @@ import { WebcamTracker } from '../../../components/exercise/WebcamTracker';
 import { SkeletonOverlay } from '../../../components/exercise/SkeletonOverlay';
 import { MovementEngine, ExerciseState, PoseData, RepStats, SpeechManager } from '@workout/shared';
 import { ChevronLeft, Play, Square, AlertTriangle, Volume2, VolumeX, Maximize, Minimize } from 'lucide-react';
-import { fetchVoiceConfig } from '../../actions/actions';
 import confetti from 'canvas-confetti';
 import { useRef, useEffect } from 'react';
 
