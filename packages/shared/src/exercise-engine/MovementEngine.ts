@@ -4,7 +4,7 @@ import { PlieSquatRule } from './PlieSquatRule';
 import { SquatRule } from './SquatRule';
 import { SplitLungeRule } from './SplitLungeRule';
 
-export interface ExerciseRule {
+export interface IExerciseRule {
   validate(pose: PoseData, state: ExerciseState): {
     newPhase: MovementPhase;
     feedback: string[];
@@ -19,7 +19,7 @@ export interface ExerciseRule {
 
 export class MovementEngine {
   private state: ExerciseState;
-  private rule: ExerciseRule;
+  private rule: IExerciseRule;
   private currentRepMetadata: Partial<RepStats> & { frameCount: number } | null = null;
   private lastMovementStats: RepStats | null = null;
   private minRepDurationSeconds: number = 0.8;
