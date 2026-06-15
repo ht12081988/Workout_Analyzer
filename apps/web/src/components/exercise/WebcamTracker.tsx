@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
-import { PoseData } from '../../lib/exercise-engine/types';
+import { PoseData } from '@workout/shared';
 
 interface WebcamTrackerProps {
   onPose: (pose: PoseData) => void;

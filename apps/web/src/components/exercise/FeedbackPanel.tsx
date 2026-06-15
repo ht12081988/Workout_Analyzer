@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { MovementPhase } from '../../lib/exercise-engine/types';
+import { MovementPhase } from '@workout/shared';
 
 interface FeedbackPanelProps {
   phase: MovementPhase;

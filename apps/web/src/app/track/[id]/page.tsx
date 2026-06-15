@@ -4,10 +4,9 @@ import React, { useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { WebcamTracker } from '../../../components/exercise/WebcamTracker';
 import { SkeletonOverlay } from '../../../components/exercise/SkeletonOverlay';
-import { MovementEngine } from '../../../lib/exercise-engine/MovementEngine';
-import { ExerciseState, PoseData, RepStats } from '../../../lib/exercise-engine/types';
+import { MovementEngine, ExerciseState, PoseData, RepStats, SpeechManager } from '@workout/shared';
 import { ChevronLeft, Play, Square, AlertTriangle, Volume2, VolumeX, Maximize, Minimize } from 'lucide-react';
-import { SpeechManager } from '../../../lib/exercise-engine/SpeechManager';
+import { fetchVoiceConfig } from '../../actions/actions';
 import confetti from 'canvas-confetti';
 import { useRef, useEffect } from 'react';
 

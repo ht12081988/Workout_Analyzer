@@ -11,6 +11,11 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+app.use((req, res, next) => {
+  console.log(`[API] ${req.method} ${req.url} - IP: ${req.ip}`);
+  next();
+});
+
 app.get('/status', (req, res) => {
   res.json({ status: 'ok', message: 'Workout Analyzer API is running' });
 });
@@ -222,9 +227,9 @@ app.get('/sessions', async (req, res) => {
         s.exercise_id,
         s.start_time,
         s.end_time,
-        s.total_reps,
-        s.average_accuracy,
-        s.total_duration_seconds,
+        COALESCE(NULLIF(s.total_reps, 0), (SELECT COUNT(*)::int FROM workout_attempts wa WHERE wa.session_id = s.id AND wa.status = 'success')) as total_reps,
+        COALESCE(NULLIF(s.average_accuracy, 0), (SELECT COALESCE(AVG(quality_score), 0)::numeric(5,2) FROM workout_rep_logs wr WHERE wr.session_id = s.id)) as average_accuracy,
+        COALESCE(NULLIF(s.total_duration_seconds, 0), EXTRACT(EPOCH FROM (COALESCE(s.end_time, (SELECT MAX(created_at) FROM workout_attempts wa WHERE wa.session_id = s.id), s.start_time) - s.start_time))::int) as total_duration_seconds,
         s.status,
         e.name as exercise_name,
         e.category as exercise_category,
@@ -378,8 +383,8 @@ app.post('/sessions/:id/attempts', async (req, res) => {
 });
 
 
-app.listen(port, async () => {
-  console.log(`Server is running on http://localhost:${port}`);
+app.listen(port, '0.0.0.0', async () => {
+  console.log(`Server is running on http://0.0.0.0:${port}`);
   await testConnection();
 });
  

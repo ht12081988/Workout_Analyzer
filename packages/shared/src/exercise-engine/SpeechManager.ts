@@ -16,6 +16,11 @@ export interface VoiceConfigData {
   failure_guidance: Record<string, string>;
 }
 
+export interface SpeechManagerConfig {
+  customSpeakFn?: (text: string, rate: number, pitch: number) => void;
+  customStopFn?: () => void;
+}
+
 export class SpeechManager {
   private isEnabled: boolean = true;
   private lastSpokenText: string = '';
@@ -113,11 +118,24 @@ export class SpeechManager {
     'sway': 'Try to stand completely still.'
   };
 
-  constructor() {
-    if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem('visionfit.voice_guidance_enabled');
-      // Enabled by default (saved === null or saved === 'true')
-      this.isEnabled = saved !== 'false';
+  private customSpeakFn?: (text: string, rate: number, pitch: number) => void;
+  private customStopFn?: () => void;
+
+  constructor(config?: SpeechManagerConfig) {
+    if (config) {
+      this.customSpeakFn = config.customSpeakFn;
+      this.customStopFn = config.customStopFn;
+    }
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const saved = window.localStorage.getItem('visionfit.voice_guidance_enabled');
+        this.isEnabled = saved !== 'false';
+      } catch (e) {
+        this.isEnabled = true;
+      }
+    } else {
+      this.isEnabled = true;
     }
   }
 
@@ -226,7 +244,7 @@ export class SpeechManager {
    */
   public speak(rawText: string, force: boolean = false, repIndex: number = -1) {
     if (!this.isEnabled) return;
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    if (!this.customSpeakFn && (typeof window === 'undefined' || !window.speechSynthesis)) return;
 
     // Get translated coach speak if available, otherwise use original text
     const textToSpeak = this.getSpokenCue(rawText);
@@ -262,24 +280,32 @@ export class SpeechManager {
 
     try {
       // Stop current speech instantly to give clean real-time feedback
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.rate = this.speechRate;
-      utterance.pitch = this.speechPitch;
-
-      // Select high quality English voice if available
-      const voices = window.speechSynthesis.getVoices();
-      const idealVoice = 
-        voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('google')) ||
-        voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('natural')) ||
-        voices.find(v => v.lang.startsWith('en-'));
-      
-      if (idealVoice) {
-        utterance.voice = idealVoice;
+      if (this.customStopFn) {
+        this.customStopFn();
+      } else if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
       }
 
-      window.speechSynthesis.speak(utterance);
+      if (this.customSpeakFn) {
+        this.customSpeakFn(textToSpeak, this.speechRate, this.speechPitch);
+      } else if (typeof window !== 'undefined' && window.speechSynthesis) {
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.rate = this.speechRate;
+        utterance.pitch = this.speechPitch;
+
+        // Select high quality English voice if available
+        const voices = window.speechSynthesis.getVoices();
+        const idealVoice = 
+          voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('google')) ||
+          voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('natural')) ||
+          voices.find(v => v.lang.startsWith('en-'));
+        
+        if (idealVoice) {
+          utterance.voice = idealVoice;
+        }
+
+        window.speechSynthesis.speak(utterance);
+      }
 
       // Record logs
       this.lastSpokenText = textToSpeak;
@@ -328,7 +354,9 @@ export class SpeechManager {
   }
 
   public stop() {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
+    if (this.customStopFn) {
+      this.customStopFn();
+    } else if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
   }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { PoseData } from '../../lib/exercise-engine/types';
+import { PoseData } from '@workout/shared';
 
 interface SkeletonOverlayProps {
   pose: PoseData | null;
