@@ -58,7 +58,7 @@ export default function ExercisesPage() {
       .then(res => res.json())
       .then(data => {
         let rulesArr = Array.isArray(data) ? data : (data?.data || []);
-        rulesArr = rulesArr.sort((a, b) => {
+        rulesArr = rulesArr.sort((a: any, b: any) => {
           if (a.rule_name === 'HEEL_TILT') return -1;
           if (b.rule_name === 'HEEL_TILT') return 1;
           if (a.rule_name === 'SQUAT_DEPTH') return -1;
@@ -118,7 +118,7 @@ export default function ExercisesPage() {
       const res = await fetch(`http://localhost:5002/exercises/${selectedExercise.id}/rules`);
       const data = await res.json();
       let rulesArr = Array.isArray(data) ? data : (data?.data || []);
-      rulesArr = rulesArr.sort((a, b) => {
+      rulesArr = rulesArr.sort((a: any, b: any) => {
         if (a.rule_name === 'HEEL_TILT') return -1;
         if (b.rule_name === 'HEEL_TILT') return 1;
         if (a.rule_name === 'SQUAT_DEPTH') return -1;
