@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { WebcamTracker } from '../../../components/exercise/WebcamTracker';
 import { SkeletonOverlay } from '../../../components/exercise/SkeletonOverlay';
 import { MovementEngine, ExerciseState, PoseData, RepStats, SpeechManager } from '@workout/shared';
-import { ChevronLeft, Play, Square, AlertTriangle, Volume2, VolumeX, Maximize, Minimize } from 'lucide-react';
+import { ChevronLeft, Play, Square, AlertTriangle, Volume2, VolumeX, Maximize, Minimize, Activity } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useRef, useEffect } from 'react';
 
@@ -22,11 +22,15 @@ const HeaderStat = ({ label, value, color }: { label: string; value: string; col
 export default function TrackPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const exerciseId = params.id as string;
+  const mode = searchParams.get('mode') || 'self';
+  const trainerId = searchParams.get('trainer_id');
 
   const [engine] = useState(() => new MovementEngine());
   const [speech] = useState(() => new SpeechManager());
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+  const [showAngles, setShowAngles] = useState(true);
 
   useEffect(() => {
     setIsVoiceEnabled(speech.getIsEnabled());
@@ -139,7 +143,16 @@ export default function TrackPage() {
 
     const fetchRules = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/exercises/${exerciseId}/rules`);
+        let customerId = '';
+        const storedUser = window.localStorage.getItem(AUTH_USER_STORAGE_KEY);
+        if (storedUser) {
+          try { customerId = JSON.parse(storedUser).id; } catch (e) {}
+        }
+        let url = `${API_BASE_URL}/exercises/${exerciseId}/rules?mode=${mode}`;
+        if (trainerId) url += `&trainer_id=${trainerId}`;
+        if (customerId) url += `&customer_id=${customerId}`;
+
+        const res = await fetch(url);
         const rules = await res.json();
         if (rules && Array.isArray(rules)) {
           engine.setRules(rules);
@@ -200,7 +213,12 @@ export default function TrackPage() {
         const res = await fetch(`${API_BASE_URL}/sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customer_id: customerId, exercise_id: exerciseId })
+          body: JSON.stringify({ 
+            customer_id: customerId, 
+            exercise_id: exerciseId,
+            recorded_mode: mode,
+            trainer_id: trainerId
+          })
         });
 
         if (!res.ok) {
@@ -245,10 +263,14 @@ export default function TrackPage() {
     if (!sid || !attemptId) return;
 
     try {
-      // 1. Log key frames (Start, Top, End) against the ATTEMPT ID
+      // 1. Log key frames (Start, Top, End, plus intermediate phases) against the ATTEMPT ID
       const keyFrames = [
         { type: 'start', landmarks: stats.startFrameLandmarks, angles: stats.startFrameAngles, frameNumber: 1 },
+        ...(stats.descendingFrame1Landmarks ? [{ type: 'desc_1', landmarks: stats.descendingFrame1Landmarks, angles: stats.descendingFrame1Angles, frameNumber: Math.floor(stats.durationSeconds * 15 * 0.33) }] : []),
+        ...(stats.descendingFrame2Landmarks ? [{ type: 'desc_2', landmarks: stats.descendingFrame2Landmarks, angles: stats.descendingFrame2Angles, frameNumber: Math.floor(stats.durationSeconds * 15 * 0.66) }] : []),
         ...(stats.topFrameLandmarks ? [{ type: 'top', landmarks: stats.topFrameLandmarks, angles: stats.topFrameAngles, frameNumber: Math.floor(stats.durationSeconds * 15) }] : []),
+        ...(stats.ascendingFrame1Landmarks ? [{ type: 'asc_1', landmarks: stats.ascendingFrame1Landmarks, angles: stats.ascendingFrame1Angles, frameNumber: Math.floor(stats.durationSeconds * 15 + (stats.durationSeconds * 15 * 0.33)) }] : []),
+        ...(stats.ascendingFrame2Landmarks ? [{ type: 'asc_2', landmarks: stats.ascendingFrame2Landmarks, angles: stats.ascendingFrame2Angles, frameNumber: Math.floor(stats.durationSeconds * 15 + (stats.durationSeconds * 15 * 0.66)) }] : []),
         { type: 'end', landmarks: stats.endFrameLandmarks, angles: stats.endFrameAngles, frameNumber: Math.floor(stats.durationSeconds * 30) }
       ];
 
@@ -333,48 +355,13 @@ export default function TrackPage() {
     setPose(newPose);
     const newState = engine.processFrame(newPose);
 
-    // 1. Detect New Attempts (Start of movement)
-    const latestAttempt = newState.attemptLog[0];
-    if (latestAttempt && latestAttempt.id !== lastAttemptIdRef.current) {
-      lastAttemptIdRef.current = latestAttempt.id;
-      // We log the attempt immediately to get the DB ID
-      logAttempt(latestAttempt).then(dbId => {
-        if (dbId) {
-          (latestAttempt as any).dbId = dbId;
-          
-          // CRITICAL FIX: If this attempt and movement finished in the same frame,
-          // the dbId was not yet resolved when finished movement detection ran.
-          // We check here and log the movement data immediately.
-          const finishedStats = engine.getLastMovementStats();
-          if (finishedStats) {
-            const isMatch = (finishedStats.status === 'valid' ? latestAttempt.status === 'success' : latestAttempt.status === 'failed') &&
-              Math.abs(new Date(latestAttempt.timestamp).getTime() - new Date(finishedStats.endTime).getTime()) < 5000;
-            if (isMatch) {
-              console.log('Asynchronously logging movement data after attempt DB ID resolved:', dbId);
-              logMovementData(finishedStats, dbId);
-            }
-          }
-        }
-      });
-    }
-
-    // 2. Detect Finished Movements (Success or Fail)
+    // 1. Process Finished Movements
     const currentStats = engine.getLastMovementStats();
+    let newlyFinishedStats: RepStats | null = null;
+    
     if (currentStats && (currentStats as any).startTime !== lastFinishedMovementIdRef.current) {
       lastFinishedMovementIdRef.current = (currentStats as any).startTime;
-
-      // Find the corresponding attempt in our log to get the dbId (match by status and within 5 seconds of the rep's end time)
-      const matchingAttempt = newState.attemptLog.find(a =>
-        (currentStats.status === 'valid' ? a.status === 'success' : a.status === 'failed') &&
-        Math.abs(new Date(a.timestamp).getTime() - new Date(currentStats.endTime).getTime()) < 5000
-      );
-
-      // If the dbId has already resolved (e.g. attempt logged at start of movement), log it immediately.
-      // Otherwise, the asynchronous .then() handler in block 1 will log it once the ID resolves.
-      if (matchingAttempt && (matchingAttempt as any).dbId) {
-        console.log('Synchronously logging movement data (DB ID already resolved):', (matchingAttempt as any).dbId);
-        logMovementData(currentStats, (matchingAttempt as any).dbId);
-      }
+      newlyFinishedStats = currentStats;
 
       // Handle celebrations for success
       if (newState.isStarted) {
@@ -389,10 +376,36 @@ export default function TrackPage() {
             });
           }
         } else if (currentStats.status === 'failed') {
-          const failureReason = matchingAttempt?.reason || (currentStats.deviations && currentStats.deviations.length > 0 ? currentStats.deviations[0].message : 'rep failed');
+          const failureReason = currentStats.deviations && currentStats.deviations.length > 0 ? currentStats.deviations[0].message : 'rep failed';
           speech.speakFailure(failureReason);
         }
       }
+    }
+
+    // 2. Process Attempts and link with Movement Data
+    const latestAttempt = newState.attemptLog[0];
+    if (latestAttempt && latestAttempt.id !== lastAttemptIdRef.current) {
+      lastAttemptIdRef.current = latestAttempt.id;
+      // We log the attempt immediately to get the DB ID
+      logAttempt(latestAttempt).then(dbId => {
+        if (dbId) {
+          (latestAttempt as any).dbId = dbId;
+          
+          if (newlyFinishedStats) {
+             console.log('Asynchronously logging movement data after attempt DB ID resolved:', dbId);
+             logMovementData(newlyFinishedStats, dbId);
+          }
+        }
+      });
+    } else if (newlyFinishedStats) {
+       // Fallback in case attempt was already logged (should never happen because they are created together)
+       const matchingAttempt = newState.attemptLog.find(a =>
+        (newlyFinishedStats!.status === 'valid' ? a.status === 'success' : a.status === 'failed') &&
+        Math.abs(new Date(a.timestamp).getTime() - new Date(newlyFinishedStats!.endTime).getTime()) < 5000
+       );
+       if (matchingAttempt && (matchingAttempt as any).dbId) {
+         logMovementData(newlyFinishedStats, (matchingAttempt as any).dbId);
+       }
     }
 
     // Voice guidance for active real-time warnings
@@ -518,6 +531,18 @@ export default function TrackPage() {
         {/* Right: Stats & Action (5 Cols) */}
         <div className="lg:col-span-5 flex items-center gap-3">
           <button
+            onClick={() => setShowAngles(!showAngles)}
+            className={`p-3.5 rounded-2xl border transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center flex-none hidden lg:flex ${
+              showAngles
+                ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] hover:bg-cyan-500/20'
+                : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'
+            }`}
+            title={showAngles ? 'Hide Angles' : 'Show Angles'}
+          >
+            <Activity className="w-5 h-5" />
+          </button>
+
+          <button
             onClick={toggleVoice}
             className={`p-3.5 rounded-2xl border transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center flex-none hidden lg:flex ${
               isVoiceEnabled
@@ -602,6 +627,7 @@ export default function TrackPage() {
                   width={isFullscreen ? windowSize.width : 800}
                   height={isFullscreen ? windowSize.height : 600}
                   smoothing={uiSmoothing}
+                  showAngles={showAngles}
                 />
 
                 {/* Overlay Indicators */}
@@ -616,26 +642,30 @@ export default function TrackPage() {
                 {/* Top-Right Feedback Overlay */}
                 {state.feedback.length > 0 && (
                   <div className="absolute top-4 lg:top-6 right-4 lg:right-6 z-30 flex flex-col items-end gap-2 w-full max-w-[200px] sm:max-w-[300px] pointer-events-none">
-                    {state.feedback.map((msg, idx) => (
+                    {state.feedback.map((msg, idx) => {
+                      const displayCue = speech.getDisplayCue(msg);
+                      const cueType = speech.getCueType(msg);
+                      const isWarning = cueType === 'warning';
+                      return (
                       <div
                         key={idx}
-                        className={`bg-black/60 backdrop-blur-xl border px-4 py-2 lg:px-6 lg:py-3 rounded-2xl shadow-2xl animate-in slide-in-from-right-4 fade-in duration-300 flex flex-col items-end gap-0.5 ${msg.includes('Keep') || msg.includes('Widen') || msg.includes('Turn') || msg.includes('Push') || msg.includes('Knees')
+                        className={`bg-black/60 backdrop-blur-xl border px-4 py-2 lg:px-6 lg:py-3 rounded-2xl shadow-2xl animate-in slide-in-from-right-4 fade-in duration-300 flex flex-col items-end gap-0.5 ${isWarning
                           ? 'border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.2)]'
                           : 'border-[#39FF14]/30 shadow-[0_0_20px_rgba(57,255,20,0.1)]'
                           }`}
                       >
-                        <span className={`font-black text-xl sm:text-2xl lg:text-3xl tracking-tight text-right leading-tight drop-shadow-[0_0_8px_rgba(57,255,20,0.5)] ${msg.includes('Keep') || msg.includes('Widen') || msg.includes('Turn') || msg.includes('Push') || msg.includes('Knees')
+                        <span className={`font-black text-xl sm:text-2xl lg:text-3xl tracking-tight text-right leading-tight drop-shadow-[0_0_8px_rgba(57,255,20,0.5)] ${isWarning
                           ? 'text-orange-500'
                           : 'text-[#39FF14]'
                           }`}>
-                          {msg}
+                          {displayCue}
                         </span>
                         <div className="flex items-center gap-1.5">
                           <span className="text-[#39FF14]/60 text-[9px] font-black uppercase tracking-[0.2em]">{state.currentPhase.replace('_', ' ')}</span>
                           <div className="w-1 h-1 rounded-full bg-[#39FF14] animate-pulse" />
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 )}
 
@@ -693,6 +723,22 @@ export default function TrackPage() {
 
       {/* Floating Mobile Controls - Sticky Bottom */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#00142b]/95 border-t border-white/10 p-4 backdrop-blur-xl shadow-2xl flex items-center justify-between gap-4">
+        <button
+          onClick={() => setShowAngles(!showAngles)}
+          className={`p-4 rounded-2xl border transition-all duration-300 active:scale-95 flex items-center justify-center flex-1 ${
+            showAngles
+              ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+              : 'bg-white/5 text-white/40 border-white/10'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Activity className={`w-5 h-5 ${showAngles ? 'text-cyan-400' : 'text-white/40'}`} />
+            <span className={`uppercase tracking-widest text-[10px] font-black ${showAngles ? 'text-cyan-400' : 'text-white/40'}`}>
+              {showAngles ? 'Angles On' : 'Angles Off'}
+            </span>
+          </div>
+        </button>
+
         <button
           onClick={toggleVoice}
           className={`p-4 rounded-2xl border transition-all duration-300 active:scale-95 flex items-center justify-center flex-1 ${

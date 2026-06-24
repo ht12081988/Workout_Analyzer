@@ -13,6 +13,14 @@ export interface VoiceConfigData {
     global: Record<string, string>;
     exercises: Record<string, Record<string, string>>;
   };
+  display_cues?: {
+    global: Record<string, string>;
+    exercises: Record<string, Record<string, string>>;
+  };
+  cue_types?: {
+    global: Record<string, string>;
+    exercises: Record<string, Record<string, string>>;
+  };
   failure_guidance: Record<string, string>;
 }
 
@@ -110,6 +118,10 @@ export class SpeechManager {
 
   private globalCues: Record<string, string> = { ...SpeechManager.DEFAULT_CUES };
   private exerciseSpecificCues: Record<string, Record<string, string>> = {};
+  private globalDisplayCues: Record<string, string> = {};
+  private exerciseSpecificDisplayCues: Record<string, Record<string, string>> = {};
+  private globalCueTypes: Record<string, string> = {};
+  private exerciseSpecificCueTypes: Record<string, Record<string, string>> = {};
   private positiveReinforcements: string[] = [ ...SpeechManager.DEFAULT_POSITIVE_REINFORCEMENTS ];
   private failureGuidance: Record<string, string> = {
     'deep': 'Try to go deeper on your next repp.',
@@ -175,6 +187,32 @@ export class SpeechManager {
         }
       }
 
+      if (data.display_cues) {
+        if (data.display_cues.global) {
+          this.globalDisplayCues = { ...data.display_cues.global };
+        }
+        if (data.display_cues.exercises) {
+          const normalizedDisplayCues: Record<string, Record<string, string>> = {};
+          for (const [exId, cueMap] of Object.entries(data.display_cues.exercises)) {
+            normalizedDisplayCues[exId.toLowerCase()] = cueMap;
+          }
+          this.exerciseSpecificDisplayCues = normalizedDisplayCues;
+        }
+      }
+
+      if (data.cue_types) {
+        if (data.cue_types.global) {
+          this.globalCueTypes = { ...data.cue_types.global };
+        }
+        if (data.cue_types.exercises) {
+          const normalizedCueTypes: Record<string, Record<string, string>> = {};
+          for (const [exId, cueMap] of Object.entries(data.cue_types.exercises)) {
+            normalizedCueTypes[exId.toLowerCase()] = cueMap;
+          }
+          this.exerciseSpecificCueTypes = normalizedCueTypes;
+        }
+      }
+
       if (data.failure_guidance) {
         this.failureGuidance = { ...this.failureGuidance, ...data.failure_guidance };
       }
@@ -234,6 +272,40 @@ export class SpeechManager {
     // 3. Fallback to raw text
     console.log(`[SpeechManager] Cue Lookup: "${rawText}" -> "${rawText}" (Raw Text Fallback)`);
     return rawText;
+  }
+
+  /**
+   * Resolves the display text based on the raw cue text.
+   */
+  public getDisplayCue(rawText: string): string {
+    const searchId = this.activeExerciseId?.toLowerCase();
+    
+    if (searchId && this.exerciseSpecificDisplayCues[searchId]) {
+      const exerciseCue = this.exerciseSpecificDisplayCues[searchId][rawText];
+      if (exerciseCue !== undefined) return exerciseCue;
+    }
+
+    const globalCue = this.globalDisplayCues[rawText];
+    if (globalCue !== undefined) return globalCue;
+
+    return rawText;
+  }
+
+  /**
+   * Resolves the cue type (info/warning) based on the raw cue text.
+   */
+  public getCueType(rawText: string): string {
+    const searchId = this.activeExerciseId?.toLowerCase();
+    
+    if (searchId && this.exerciseSpecificCueTypes[searchId]) {
+      const exerciseCue = this.exerciseSpecificCueTypes[searchId][rawText];
+      if (exerciseCue !== undefined) return exerciseCue;
+    }
+
+    const globalCue = this.globalCueTypes[rawText];
+    if (globalCue !== undefined) return globalCue;
+
+    return 'info';
   }
 
   /**

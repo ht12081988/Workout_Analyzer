@@ -92,7 +92,9 @@ export class MovementEngine {
       endFrameLandmarks: {},
       startFrameAngles: {},
       endFrameAngles: {},
-      frameCount: 0
+      frameCount: 0,
+      _descendingFramesBuffer: [],
+      _ascendingFramesBuffer: []
     };
   }
 
@@ -136,8 +138,40 @@ export class MovementEngine {
         this.currentRepMetadata.startFrameLandmarks = { ...pose };
         this.currentRepMetadata.startFrameAngles = { ...result.angles };
       }
+      if (result.newPhase === MovementPhase.DESCENDING || result.newPhase === MovementPhase.LOWERING) {
+        this.currentRepMetadata._descendingFramesBuffer?.push({ pose: { ...pose }, angles: { ...result.angles } });
+      } else if (result.newPhase === MovementPhase.ASCENDING) {
+        this.currentRepMetadata._ascendingFramesBuffer?.push({ pose: { ...pose }, angles: { ...result.angles } });
+      }
       
       if (result.newPhase !== this.state.currentPhase) {
+        // Extract intermediate frames if we just finished a motion phase
+        if (this.state.currentPhase === MovementPhase.DESCENDING || this.state.currentPhase === MovementPhase.LOWERING) {
+          const buf = this.currentRepMetadata._descendingFramesBuffer || [];
+          if (buf.length > 0) {
+            const idx1 = Math.floor(buf.length * 0.33);
+            const idx2 = Math.floor(buf.length * 0.66);
+            this.currentRepMetadata.descendingFrame1Landmarks = buf[idx1].pose;
+            this.currentRepMetadata.descendingFrame1Angles = buf[idx1].angles;
+            this.currentRepMetadata.descendingFrame2Landmarks = buf[idx2].pose;
+            this.currentRepMetadata.descendingFrame2Angles = buf[idx2].angles;
+            this.currentRepMetadata._descendingFramesBuffer = []; // Free memory
+          }
+        }
+        
+        if (this.state.currentPhase === MovementPhase.ASCENDING) {
+          const buf = this.currentRepMetadata._ascendingFramesBuffer || [];
+          if (buf.length > 0) {
+            const idx1 = Math.floor(buf.length * 0.33);
+            const idx2 = Math.floor(buf.length * 0.66);
+            this.currentRepMetadata.ascendingFrame1Landmarks = buf[idx1].pose;
+            this.currentRepMetadata.ascendingFrame1Angles = buf[idx1].angles;
+            this.currentRepMetadata.ascendingFrame2Landmarks = buf[idx2].pose;
+            this.currentRepMetadata.ascendingFrame2Angles = buf[idx2].angles;
+            this.currentRepMetadata._ascendingFramesBuffer = []; // Free memory
+          }
+        }
+
         // Handle Peak/Top Detection
         if (result.newPhase === MovementPhase.TOP_POSITION || result.newPhase === MovementPhase.BOTTOM_POSITION) {
           this.currentRepMetadata.topTime = new Date().toISOString();
@@ -149,6 +183,29 @@ export class MovementEngine {
           this.currentRepMetadata.topFrameAngles = { ...result.angles };
         }
         this.state.currentPhase = result.newPhase;
+      } else if (this.currentRepMetadata.topFrameLandmarks) {
+        // Continuous Peak Tracking: update the peak if they go deeper/higher while still in the phase
+        if (result.newPhase === MovementPhase.BOTTOM_POSITION) {
+          // In squats/lunges, hips go down (Y increases). Higher Y = deeper.
+          const currentHipsY = (pose['LEFT_HIP']?.y || 0) + (pose['RIGHT_HIP']?.y || 0);
+          const bestHipsY = (this.currentRepMetadata.topFrameLandmarks['LEFT_HIP']?.y || 0) + (this.currentRepMetadata.topFrameLandmarks['RIGHT_HIP']?.y || 0);
+          
+          if (currentHipsY > bestHipsY) {
+            this.currentRepMetadata.topTime = new Date().toISOString();
+            this.currentRepMetadata.topFrameLandmarks = { ...pose };
+            this.currentRepMetadata.topFrameAngles = { ...result.angles };
+          }
+        } else if (result.newPhase === MovementPhase.TOP_POSITION) {
+          // In calf raises, heels go up (Y decreases). Lower Y = higher.
+          const currentHeelsY = (pose['LEFT_HEEL']?.y || 0) + (pose['RIGHT_HEEL']?.y || 0);
+          const bestHeelsY = (this.currentRepMetadata.topFrameLandmarks['LEFT_HEEL']?.y || 0) + (this.currentRepMetadata.topFrameLandmarks['RIGHT_HEEL']?.y || 0);
+          
+          if (currentHeelsY < bestHeelsY) {
+            this.currentRepMetadata.topTime = new Date().toISOString();
+            this.currentRepMetadata.topFrameLandmarks = { ...pose };
+            this.currentRepMetadata.topFrameAngles = { ...result.angles };
+          }
+        }
       }
 
       if (result.feedback.length > 0) {

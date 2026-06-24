@@ -15,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-gifted-charts';
 import { Colors, Spacing, Radii } from '../theme';
 import { API_BASE_URL } from '../config';
+import { SkeletonReplay } from '../components/SkeletonReplay';
 
 type Rep = {
   id: string;
@@ -68,10 +69,13 @@ export function SessionDetailScreen({ route, navigation }: any) {
   const { sessionId } = route.params;
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [analytics, setAnalytics] = useState<Analytic[]>([]);
-  const [activeTab, setActiveTab] = useState<'analysis' | 'log'>('analysis');
+  const [activeTab, setActiveTab] = useState<'analysis' | 'log' | 'replay'>('analysis');
   const [selectedAttemptIndex, setSelectedAttemptIndex] = useState<number>(-1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [frames, setFrames] = useState<any[]>([]);
+  const [angles, setAngles] = useState<any[]>([]);
+  const [replayAttemptIndex, setReplayAttemptIndex] = useState<number>(0);
   
   const timelineRef = useRef<ScrollView>(null);
 
@@ -91,6 +95,20 @@ export function SessionDetailScreen({ route, navigation }: any) {
       if (resAnalytics.ok) {
         const dataAnalytics = await resAnalytics.json();
         setAnalytics(dataAnalytics);
+      }
+
+      // 3. Fetch Frames
+      const resFrames = await fetch(`${API_BASE_URL}/sessions/${sessionId}/frames`);
+      if (resFrames.ok) {
+        const dataFrames = await resFrames.json();
+        setFrames(dataFrames);
+      }
+
+      // 4. Fetch Angles
+      const resAngles = await fetch(`${API_BASE_URL}/sessions/${sessionId}/angles`);
+      if (resAngles.ok) {
+        const dataAngles = await resAngles.json();
+        setAngles(dataAngles);
       }
     } catch (err) {
       console.error(err);
@@ -494,7 +512,14 @@ export function SessionDetailScreen({ route, navigation }: any) {
           onPress={() => setActiveTab('log')}
         >
           <MaterialIcons name="history-edu" size={20} color={activeTab === 'log' ? Colors.primary : Colors.outline} />
-          <Text style={[styles.tabText, activeTab === 'log' && styles.tabTextActive]}>Attempts Log</Text>
+          <Text style={[styles.tabText, activeTab === 'log' && styles.tabTextActive]}>Attempts</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.tab, activeTab === 'replay' && styles.tabActive]}
+          onPress={() => setActiveTab('replay')}
+        >
+          <MaterialIcons name="play-circle-filled" size={20} color={activeTab === 'replay' ? Colors.primary : Colors.outline} />
+          <Text style={[styles.tabText, activeTab === 'replay' && styles.tabTextActive]}>Replay</Text>
         </TouchableOpacity>
       </View>
 
@@ -644,7 +669,7 @@ export function SessionDetailScreen({ route, navigation }: any) {
           </View>
 
         </ScrollView>
-      ) : (
+      ) : activeTab === 'log' ? (
         /* Log List of Attempts */
         <FlatList
           data={timeline}
@@ -683,6 +708,26 @@ export function SessionDetailScreen({ route, navigation }: any) {
             </View>
           }
         />
+      ) : (
+        /* Replay Tab */
+        <View style={[styles.content, { paddingBottom: 0 }]}>
+          <View style={{ flex: 1, padding: 0 }}>
+            <SkeletonReplay 
+              exerciseName={session?.exercise_name}
+              frames={frames.filter(f => f.rep_id === session?.attempts[replayAttemptIndex]?.id)} 
+              angles={angles.filter(a => a.rep_id === session?.attempts[replayAttemptIndex]?.id)}
+              attemptText={`Rep ${replayAttemptIndex + 1} - ${session?.attempts[replayAttemptIndex]?.reason || 'Completed'}`}
+              feedback={session?.attempts[replayAttemptIndex]?.reason}
+              onComplete={() => {
+                if (session && replayAttemptIndex < session.attempts.length - 1) {
+                  setReplayAttemptIndex(prev => prev + 1);
+                }
+              }}
+              onNext={session && replayAttemptIndex < session.attempts.length - 1 ? () => setReplayAttemptIndex(prev => prev + 1) : undefined}
+              onPrev={replayAttemptIndex > 0 ? () => setReplayAttemptIndex(prev => prev - 1) : undefined}
+            />
+          </View>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -1070,20 +1115,24 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   logTimeText: {
-    fontSize: 10,
+    fontSize: 12,
     color: Colors.outline,
     marginTop: Spacing.sm,
-    textAlign: 'right',
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: Spacing.xl * 2,
+    padding: Spacing.xxl,
   },
   emptyText: {
-    marginTop: Spacing.md,
+    color: Colors.outlineVariant,
     fontSize: 14,
-    color: Colors.outline,
+    marginTop: Spacing.md,
+    textAlign: 'center',
   },
+  replayContainer: {
+    padding: Spacing.md,
+    alignItems: 'center',
+  }
 });

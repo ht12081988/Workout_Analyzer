@@ -14,22 +14,22 @@ model customers {
   password         String
   created_at       DateTime?          @default(now()) @db.Timestamptz(6)
   last_login       DateTime?          @db.Timestamptz(6)
+  trainer_athletes trainer_athletes[]
   workout_sessions workout_sessions[]
 }
 
 model exercise_pose_rules {
-  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  exercise_id      String?    @db.Uuid
-  rule_name        String?    @db.VarChar(255)
-  rule_type        String?    @db.VarChar(100)
-  threshold_value  Json?
-  feedback_message String?
-  severity         String?    @db.VarChar(50)
-  created_at       DateTime?  @default(now()) @db.Timestamptz(6)
-  exercise_name    String?    @db.VarChar(255)
-  exercises        exercises? @relation(fields: [exercise_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@unique([exercise_id, rule_name])
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exercise_id     String?    @db.Uuid
+  rule_name       String?    @db.VarChar(255)
+  rule_type       String?    @db.VarChar(100)
+  threshold_value Json?
+  created_at      DateTime?  @default(now()) @db.Timestamptz(6)
+  exercise_name   String?    @db.VarChar(255)
+  creator_type    String?    @default("system") @db.VarChar(50)
+  customer_id     String?    @db.Uuid
+  trainer_id      String?    @db.Uuid
+  exercises       exercises? @relation(fields: [exercise_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model exercises {
@@ -78,6 +78,8 @@ model voice_cues {
   is_active     Boolean    @default(true)
   created_at    DateTime?  @default(now()) @db.Timestamptz(6)
   updated_at    DateTime?  @default(now()) @db.Timestamptz(6)
+  display_cue   String?    @db.VarChar(255)
+  cue_type      String?    @db.VarChar(50)
   exercises     exercises? @relation(fields: [exercise_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([exercise_id, raw_cue], map: "unique_exercise_raw_cue")
@@ -161,6 +163,8 @@ model workout_sessions {
   average_accuracy        Decimal?                  @db.Decimal(5, 2)
   total_duration_seconds  Int?
   status                  String?                   @default("active") @db.VarChar(50)
+  recorded_mode           String?                   @default("self") @db.VarChar(50)
+  trainer_id              String?                   @db.Uuid
   workout_attempts        workout_attempts[]
   workout_deviation_logs  workout_deviation_logs[]
   workout_joint_angles    workout_joint_angles[]
@@ -168,4 +172,23 @@ model workout_sessions {
   workout_rep_logs        workout_rep_logs[]
   customers               customers?                @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   exercises               exercises?                @relation(fields: [exercise_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model trainers {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email            String             @unique
+  name             String?
+  password         String
+  created_at       DateTime?          @default(now()) @db.Timestamptz(6)
+  trainer_athletes trainer_athletes[]
+}
+
+model trainer_athletes {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trainer_id  String    @db.Uuid
+  customer_id String    @db.Uuid
+  status      String?   @default("active") @db.VarChar(50)
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  customers   customers @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  trainers    trainers  @relation(fields: [trainer_id], references: [id], onDelete: Cascade)
 }

@@ -10,15 +10,15 @@ export class SplitLungeRule {
     // 2. LUNGE_DEPTH
     TARGET_KNEE_ANGLE: 85.0,       // Strict target (closer to 90 degrees)
     START_TRIGGER_ANGLE: 150.0,    // Balanced for earlier detection
-    PARTIAL_REP_DROP: 15.0,        // More sensitive to "giving up" mid-rep
+    PARTIAL_REP_DROP: 25.0,        // Increased to 25 to prevent muscle wobble during slow reps from triggering premature ascent
     STAND_UP_TOLERANCE: 165.0,     // Must stand up more fully
     MIN_MOVEMENT_FOR_ATTEMPT: 135.0,
 
     // 3. POSTURE_STABILITY
-    MAX_TORSO_LEAN: 15.0,
-    KNEE_TOE_TOLERANCE: 0.0,
-    MAX_HEAD_FORWARD: 0.08,
-    GAZE_SENSITIVITY: 0.02,
+    MAX_TORSO_LEAN: 30.0,          // Relaxed from 15.0 to 30.0 because slow lunges naturally require more forward lean for balance
+    KNEE_TOE_TOLERANCE: 0.1,       // Relaxed from 0.0 to 0.1 because knees naturally track slightly over toes during a full depth lunge
+    MAX_HEAD_FORWARD: 0.15,        // Relaxed
+    GAZE_SENSITIVITY: 0.05,
 
     // 4. ENGINE_STABILITY
     STILL_REQUIRED: 10,
@@ -119,10 +119,34 @@ export class SplitLungeRule {
       return { newPhase, feedback: ['Searching for body profile...'], isRepCompleted, isMovementFinished: false, qualityScore: 0, angles: {} };
     }
 
+    // Detect/Use Locked Facing Direction
+    let facingDir = this.lockedFacingDir;
+    if (facingDir === null) {
+      // Use Toe vs Ankle to determine facing direction. Toes are always in front of the ankle.
+      // Using Knee vs Hip is unreliable when standing tall.
+      facingDir = (lToe.x > lAnkle.x || rToe.x > rAnkle.x) ? 1 : -1;
+    }
+
+    // Identify/Use Locked Front Leg
+    let isLeftFront = false;
+    if (this.lockedFrontLeg === 'left') {
+      isLeftFront = true;
+    } else if (this.lockedFrontLeg === 'right') {
+      isLeftFront = false;
+    } else {
+      isLeftFront = (lAnkle.x * facingDir) > (rAnkle.x * facingDir);
+    }
+
+    const frontKnee = isLeftFront ? lKnee : rKnee;
+    const frontToe = isLeftFront ? lToe : rToe;
+
     // 1. CORE CALCULATIONS (Profile View Focus)
     const lKneeAngle = calculateAngle(lHip, lKnee, lAnkle);
     const rKneeAngle = calculateAngle(rHip, rKnee, rAnkle);
-    const rawActiveKneeAngle = Math.min(lKneeAngle, rKneeAngle);
+    
+    // BUGFIX: Track only the working (front) leg. 
+    // Taking Math.min(l, r) caused the bent back leg to prevent the angle from reaching STAND_UP_TOLERANCE (165 deg).
+    const rawActiveKneeAngle = isLeftFront ? lKneeAngle : rKneeAngle;
 
     if (this.smoothedKneeAngle === null) {
       this.smoothedKneeAngle = rawActiveKneeAngle;
@@ -130,12 +154,6 @@ export class SplitLungeRule {
       this.smoothedKneeAngle = (rawActiveKneeAngle * this.SMOOTHING_FACTOR) + (this.smoothedKneeAngle * (1 - this.SMOOTHING_FACTOR));
     }
     const activeKneeAngle = this.smoothedKneeAngle;
-
-    // Detect/Use Locked Facing Direction
-    let facingDir = this.lockedFacingDir;
-    if (facingDir === null) {
-      facingDir = (lKnee.x > lHip.x || rKnee.x > rHip.x) ? 1 : -1;
-    }
 
     // Head Alignment (Neck/Gaze)
     const activeEar = facingDir === 1 ? rEar : lEar;
@@ -154,19 +172,6 @@ export class SplitLungeRule {
       headFeedback = "Look straight ahead";
     }
 
-    // Identify/Use Locked Front Leg
-    let isLeftFront = false;
-    if (this.lockedFrontLeg === 'left') {
-      isLeftFront = true;
-    } else if (this.lockedFrontLeg === 'right') {
-      isLeftFront = false;
-    } else {
-      isLeftFront = (lAnkle.x * facingDir) > (rAnkle.x * facingDir);
-    }
-
-    const frontKnee = isLeftFront ? lKnee : rKnee;
-    const frontToe = isLeftFront ? lToe : rToe;
-
     // Step length calculation
     const shoulderWidth = Math.abs(lShoulder.x - rShoulder.x) || 0.1;
     const ankleDist = Math.abs(lAnkle.x - rAnkle.x);
@@ -181,7 +186,15 @@ export class SplitLungeRule {
     const torsoVectorY = avgShoulderY - avgHipY;
     const torsoAngle = Math.abs(Math.atan2(torsoVectorX, -torsoVectorY) * (180 / Math.PI));
 
-    // 2. STATE MACHINE (Trainer's Way: Split Squat)
+    // 2. GLOBAL REP TRACKERS
+    // Update minimum knee angle during any active motion phase
+    if (state.currentPhase === MovementPhase.DESCENDING || 
+        state.currentPhase === MovementPhase.BOTTOM_POSITION || 
+        state.currentPhase === MovementPhase.ASCENDING) {
+      this.minKneeAngleThisRep = Math.min(this.minKneeAngleThisRep, activeKneeAngle);
+    }
+
+    // 3. STATE MACHINE (Trainer's Way: Split Squat)
     switch (state.currentPhase) {
       case MovementPhase.INITIALIZING:
         if (this.checkStillness(pose)) {
@@ -208,7 +221,7 @@ export class SplitLungeRule {
               
               // LOCK THE STANCE GEOMETRY
               if (this.lockedFacingDir === null) {
-                this.lockedFacingDir = (lKnee.x > lHip.x || rKnee.x > rHip.x) ? 1 : -1;
+                this.lockedFacingDir = (lToe.x > lAnkle.x || rToe.x > rAnkle.x) ? 1 : -1;
                 this.lockedFrontLeg = (lAnkle.x * this.lockedFacingDir) > (rAnkle.x * this.lockedFacingDir) ? 'left' : 'right';
               }
             } else {
@@ -234,7 +247,6 @@ export class SplitLungeRule {
         break;
 
       case MovementPhase.DESCENDING:
-        this.minKneeAngleThisRep = Math.min(this.minKneeAngleThisRep, activeKneeAngle);
         feedback.push("Sitting into the lunge...");
         if (headFeedback) feedback.push(headFeedback);
 
@@ -290,9 +302,11 @@ export class SplitLungeRule {
               isMovementFinished: false,
               qualityScore: 100,
               angles: {
+                lKneeAngle,
+                rKneeAngle,
                 kneeAngle: activeKneeAngle,
-                torsoAngle: torsoAngle,
-                stanceRatio: stanceRatio
+                stanceRatio: stanceRatio,
+                torsoAngle: torsoAngle
               }
             };
           }
@@ -335,6 +349,8 @@ export class SplitLungeRule {
       qualityScore: 100,
       newAttempt,
       angles: {
+        lKneeAngle,
+        rKneeAngle,
         kneeAngle: activeKneeAngle,
         torsoAngle: torsoAngle,
         stanceRatio: stanceRatio

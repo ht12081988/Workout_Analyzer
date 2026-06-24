@@ -128,10 +128,13 @@ export class SquatRule {
     const torsoRatio = this.baseTorsoHeight ? currentTorsoHeight / this.baseTorsoHeight : 1.0;
 
     // Knee Alignment (Valgus check)
-    // Distance between knees vs distance between ankles
     const ankleWidth = Math.abs(lAnkle.x - rAnkle.x);
     const kneeWidth = Math.abs(lKnee.x - rKnee.x);
     const valgusRatio = kneeWidth / ankleWidth; // Should stay > 0.8-0.9
+
+    const lTorsoAngle = calculateAngle(lShoulder, lHip, { x: lHip.x, y: lHip.y - 1.0 });
+    const rTorsoAngle = calculateAngle(rShoulder, rHip, { x: rHip.x, y: rHip.y - 1.0 });
+    const torsoAngle = (lTorsoAngle + rTorsoAngle) / 2;
 
     // Smoothing
     if (this.smoothedKneeAngle === null) this.smoothedKneeAngle = avgKneeAngle;
@@ -274,9 +277,12 @@ export class SquatRule {
       qualityScore: 100,
       newAttempt,
       angles: {
+        lKneeAngle,
+        rKneeAngle,
         kneeAngle: avgKneeAngle,
         stanceRatio: stanceRatio,
         torsoRatio: torsoRatio,
+        torsoAngle: torsoAngle,
         valgusRatio: valgusRatio
       }
     };

@@ -87,7 +87,42 @@ function PracticeDashboard({
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [exercisesLoading, setExercisesLoading] = useState(true);
   const [exercisesError, setExercisesError] = useState('');
+  const [athleteMode, setAthleteMode] = useState<'self' | 'trainer'>('self');
+  const [trainers, setTrainers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [selectedTrainerId, setSelectedTrainerId] = useState<string>('');
+  const [trainerError, setTrainerError] = useState('');
   const displayEmail = user.email || 'athlete@performance.ai';
+
+  useEffect(() => {
+    const savedMode = window.localStorage.getItem('visionfit.athlete.mode');
+    if (savedMode === 'trainer') setAthleteMode('trainer');
+  }, []);
+
+  useEffect(() => {
+    if (athleteMode === 'trainer' && user.id) {
+      fetch(`${API_BASE_URL}/athletes/${user.id}/trainers`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setTrainers(data);
+            if (data.length > 0) {
+               const savedTrainer = window.localStorage.getItem('visionfit.athlete.trainer_id');
+               if (savedTrainer && data.find(t => t.id === savedTrainer)) {
+                 setSelectedTrainerId(savedTrainer);
+               } else {
+                 setSelectedTrainerId(data[0].id);
+                 window.localStorage.setItem('visionfit.athlete.trainer_id', data[0].id);
+               }
+            } else {
+               setAthleteMode('self');
+               window.localStorage.setItem('visionfit.athlete.mode', 'self');
+               setTrainerError("You don't have any linked trainers yet.");
+            }
+          }
+        })
+        .catch(err => console.error('Failed to fetch trainers', err));
+    }
+  }, [athleteMode, user.id]);
 
   const loadExercises = useCallback(async () => {
     setExercisesLoading(true);
@@ -169,32 +204,89 @@ function PracticeDashboard({
       </nav>
 
       <section className="mx-auto max-w-7xl px-4 pb-16 pt-24 md:px-16">
-        <header className="mb-12 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="mb-3 font-body text-xs font-bold uppercase text-secondary">
-              Practice Dashboard
-            </p>
-            <h1 className="mb-4 font-headline text-4xl font-extrabold leading-tight text-primary md:text-6xl">
+        <header className="mb-12 flex flex-col gap-6">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <h1 className="font-headline text-4xl font-extrabold leading-tight text-primary md:text-6xl">
               Refine Your Form.
             </h1>
-            <p className="max-w-2xl font-body text-base leading-7 text-on-surface-variant">
-              Select an exercise to begin AI-guided posture tracking. Each
-              session focuses on alignment cues that improve control, reduce
-              injury risk, and make every rep easier to evaluate.
+            
+            <div className="flex flex-col items-end gap-4">
+              <div className="flex items-center gap-4">
+                {athleteMode === 'trainer' && trainers.length > 0 && (
+                  <select
+                    value={selectedTrainerId}
+                    onChange={(e) => {
+                      setSelectedTrainerId(e.target.value);
+                      window.localStorage.setItem('visionfit.athlete.trainer_id', e.target.value);
+                    }}
+                    className="bg-surface-container-low border border-outline/10 rounded-full px-4 py-1.5 text-sm font-bold text-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary shadow-inner"
+                  >
+                    {trainers.map(t => (
+                      <option key={t.id} value={t.id}>{t.name || t.email}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Mode Switcher */}
+                <div className="flex items-center bg-surface-container-low rounded-full p-1 border border-outline/10 shadow-inner">
+                  <button
+                    onClick={() => {
+                      setAthleteMode('trainer');
+                      window.localStorage.setItem('visionfit.athlete.mode', 'trainer');
+                    }}
+                    className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${athleteMode === 'trainer' ? 'bg-secondary text-on-secondary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+                  >
+                    Trainer
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAthleteMode('self');
+                      window.localStorage.setItem('visionfit.athlete.mode', 'self');
+                    }}
+                    className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${athleteMode === 'self' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+                  >
+                    Self
+                  </button>
+                </div>
+              </div>
+              
+              {activeExercise && (
+                <div className="rounded-[2rem] bg-secondary-container px-5 py-4 text-on-secondary-container shadow-sm w-full max-w-[200px] text-right">
+                  <p className="font-body text-xs font-bold uppercase">
+                    Selected Movement
+                  </p>
+                  <p className="mt-1 font-headline text-xl font-bold">
+                    {activeExercise}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div>
+            <p className="font-body text-base text-on-surface-variant">
+              Select an exercise to begin AI-guided posture tracking. Improve control, reduce injury risk, and evaluate every rep.
             </p>
           </div>
-
-          {activeExercise && (
-            <div className="rounded-[2rem] bg-secondary-container px-5 py-4 text-on-secondary-container shadow-sm">
-              <p className="font-body text-xs font-bold uppercase">
-                Selected Movement
-              </p>
-              <p className="mt-1 font-headline text-xl font-bold">
-                {activeExercise}
-              </p>
-            </div>
-          )}
         </header>
+
+        {trainerError && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="w-full max-w-[420px] rounded-[2rem] bg-surface p-8 shadow-2xl mx-4 transform transition-all">
+              <h2 className="mb-3 font-headline text-2xl font-bold text-on-surface">Trainer Access</h2>
+              <p className="mb-8 font-body text-base text-on-surface-variant leading-relaxed">
+                {trainerError} Please contact your facility to get linked.
+              </p>
+              
+              <button
+                onClick={() => setTrainerError('')}
+                className="w-full rounded-full bg-primary px-6 py-3.5 font-headline text-sm font-bold text-on-primary transition-colors hover:bg-primary/90"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        )}
 
         {exercisesLoading && (
           <div className="rounded-[2rem] bg-surface-container-low p-8 font-body text-on-surface-variant">
@@ -258,6 +350,20 @@ function PracticeDashboard({
                     )}
                   </div>
 
+                  <div className="absolute right-6 top-6 z-10">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/configure/${exercise.id}`);
+                      }}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70 backdrop-blur-md text-primary shadow-lg hover:bg-white transition-colors"
+                      title="Configure exercise"
+                      type="button"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">settings</span>
+                    </button>
+                  </div>
+
                   {exercise.camera_angle && (
                     <div className="absolute right-0 bottom-0 flex items-center gap-1.5 rounded-tl-2xl bg-black/70 backdrop-blur-md px-3 py-1 font-label text-[9px] font-black uppercase tracking-widest text-white/90 shadow-md">
                       <span className="material-symbols-outlined text-[12px] font-bold">photo_camera</span>
@@ -268,9 +374,11 @@ function PracticeDashboard({
 
                 <div className="flex flex-1 flex-col justify-between p-8">
                   <div>
-                    <h2 className="mb-4 font-headline text-3xl font-bold text-on-surface">
-                      {exercise.name}
-                    </h2>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="font-headline text-3xl font-bold text-on-surface">
+                        {exercise.name}
+                      </h2>
+                    </div>
                     <p className="font-body text-sm leading-relaxed text-on-surface-variant">
                       {exercise.description}
                     </p>
@@ -280,7 +388,11 @@ function PracticeDashboard({
                     className="mt-10 flex w-full items-center justify-between rounded-full bg-surface-container-highest px-8 py-5 font-headline font-bold text-on-surface transition-all group-hover:bg-primary group-hover:text-on-primary active:scale-95"
                     onClick={() => {
                       setActiveExercise(exercise.name);
-                      router.push(`/track/${exercise.id}`);
+                      if (athleteMode === 'trainer' && selectedTrainerId) {
+                        router.push(`/track/${exercise.id}?mode=trainer&trainer_id=${selectedTrainerId}`);
+                      } else {
+                        router.push(`/track/${exercise.id}?mode=self`);
+                      }
                     }}
                     type="button"
                   >

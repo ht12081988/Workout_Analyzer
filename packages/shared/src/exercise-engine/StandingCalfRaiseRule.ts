@@ -28,10 +28,6 @@ export class StandingCalfRaiseRule {
     CALIBRATION_MOVEMENT_MAX: 0.002,
     CALIBRATION_KNEE_MIN: 170.0,
 
-    // Scoring
-    PENALTY_KNEE: 20,
-    PENALTY_SYMMETRY: 10,
-
     // Body displacement checks
     MIN_BODY_LIFT: 0.005
   };
@@ -87,13 +83,11 @@ export class StandingCalfRaiseRule {
           this.messages.SYMMETRY = rule.feedback_message || this.messages.SYMMETRY;
           if (val.start_diff) this.thresholds.SYMMETRY_START_MAX = val.start_diff;
           if (val.mid_diff) this.thresholds.SYMMETRY_MID_MAX = val.mid_diff;
-          if (val.penalty) this.thresholds.PENALTY_SYMMETRY = val.penalty;
           break;
         case 'KNEE_STABILITY':
           this.messages.KNEE_STABILITY = rule.feedback_message || this.messages.KNEE_STABILITY;
           if (val.min_angle) this.thresholds.KNEE_BEND_MIN = val.min_angle;
           if (val.flex_allowance) this.thresholds.KNEE_FLEX_ALLOWANCE = val.flex_allowance;
-          if (val.penalty) this.thresholds.PENALTY_KNEE = val.penalty;
           break;
         case 'BODY_SWAY':
           this.messages.BODY_SWAY = rule.feedback_message || this.messages.BODY_SWAY;
@@ -185,6 +179,13 @@ export class StandingCalfRaiseRule {
     const currentAnkleX = (lAnkle.x + rAnkle.x) / 2;
     const currentShoulderX = (lShoulder.x + rShoulder.x) / 2;
     const currentShoulderY = (lShoulder.y + rShoulder.y) / 2;
+    
+    let torsoAngle = 0;
+    if (lShoulder && rShoulder && lHip && rHip) {
+      const lTorsoAngle = calculateAngle(lShoulder, lHip, { x: lHip.x, y: lHip.y - 1.0 });
+      const rTorsoAngle = calculateAngle(rShoulder, rHip, { x: rHip.x, y: rHip.y - 1.0 });
+      torsoAngle = (lTorsoAngle + rTorsoAngle) / 2;
+    }
     const frameMovement = Math.abs(currentAnkleX - this.lastAnkleX);
     this.lastAnkleX = currentAnkleX;
 
@@ -380,7 +381,8 @@ export class StandingCalfRaiseRule {
       angles: {
         footTilt: this.isCalibrated ? Number((avgFootTilt - this.baseFootTilt).toFixed(1)) : 0,
         kneeAngle: avgKneeAngle,
-        symmetry: tiltDiff
+        symmetry: tiltDiff,
+        torsoAngle: torsoAngle
       }
     };
 

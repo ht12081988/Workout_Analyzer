@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, Inter } from "next/font/google";
+import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -32,6 +33,22 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-surface text-on-surface">
         {children}
+        <Toaster 
+          position="top-center" 
+          toastOptions={{
+            style: {
+              background: '#ff725e', /* light tomato red */
+              color: '#fff',
+              fontWeight: 'bold',
+              padding: '12px 24px',
+              borderRadius: '9999px',
+            },
+            iconTheme: {
+              primary: '#fff',
+              secondary: '#ff725e',
+            },
+          }}
+        />
       </body>
     </html>
   );

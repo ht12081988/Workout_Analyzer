@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, FlatList, TouchableOpacity, ActivityIndicator, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, FlatList, TouchableOpacity, ActivityIndicator, Image, Dimensions, Modal } from 'react-native';
 
 const { width } = Dimensions.get('window');
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,12 +15,18 @@ type Exercise = {
   category: string;
 };
 
+type Trainer = {
+  id: string;
+  email: string;
+  name: string;
+};
+
 const getExerciseImage = (name: string) => {
   const normalized = name.toLowerCase();
-  if (normalized.includes('pile squat')) return require('../../assets/pile-squats.png');
-  if (normalized.includes('squat')) return require('../../assets/squats.png');
-  if (normalized.includes('lunge')) return require('../../assets/split-lunges.png');
-  if (normalized.includes('calf')) return require('../../assets/standing-calf-raise.png');
+  if (normalized.includes('pile squat')) return require('../../assets/pile-squats.jpg');
+  if (normalized.includes('squat')) return require('../../assets/squats.jpg');
+  if (normalized.includes('lunge')) return require('../../assets/split-lunges.jpg');
+  if (normalized.includes('calf')) return require('../../assets/standing-calf-raise.jpg');
   return require('../../assets/icon.png');
 };
 
@@ -29,10 +35,29 @@ export function DashboardScreen({ navigation }: any) {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
 
   useEffect(() => {
     fetchExercises();
+    fetchUserAndTrainers();
   }, []);
+
+  const fetchUserAndTrainers = async () => {
+    try {
+      const userJson = await AsyncStorage.getItem('visionfit.auth.user');
+      if (userJson) {
+        const user = JSON.parse(userJson);
+        const res = await fetch(`${API_BASE_URL}/athletes/${user.id}/trainers`);
+        if (res.ok) {
+          const data = await res.json();
+          setTrainers(data);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch trainers', e);
+    }
+  };
 
   const fetchExercises = async () => {
     try {
@@ -53,6 +78,31 @@ export function DashboardScreen({ navigation }: any) {
     navigation.replace('Login');
   };
 
+  const handleStartPractice = (exercise: Exercise) => {
+    if (trainers.length === 0) {
+      // Default to self mode immediately if no trainers
+      navigation.navigate('Tracker', { 
+        exerciseId: exercise.id, 
+        exerciseName: exercise.name,
+        mode: 'self'
+      });
+    } else {
+      setSelectedExercise(exercise);
+    }
+  };
+
+  const startSession = (mode: 'self' | 'trainer', trainerId?: string) => {
+    if (selectedExercise) {
+      navigation.navigate('Tracker', {
+        exerciseId: selectedExercise.id,
+        exerciseName: selectedExercise.name,
+        mode,
+        trainerId
+      });
+      setSelectedExercise(null);
+    }
+  };
+
   const renderExercise = ({ item }: { item: Exercise }) => (
     <View style={styles.carouselItem}>
       <View style={styles.card}>
@@ -62,7 +112,7 @@ export function DashboardScreen({ navigation }: any) {
           <Text style={styles.cardDesc} numberOfLines={3}>{item.description}</Text>
           <TouchableOpacity 
             style={styles.startButton}
-            onPress={() => navigation.navigate('Tracker', { exerciseId: item.id, exerciseName: item.name })}
+            onPress={() => handleStartPractice(item)}
           >
             <Text style={styles.startButtonText}>Start Practice</Text>
             <MaterialIcons name="chevron-right" size={24} color={Colors.onPrimary} />
@@ -127,6 +177,35 @@ export function DashboardScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Trainer Selection Modal */}
+      <Modal visible={!!selectedExercise} transparent animationType="slide" onRequestClose={() => setSelectedExercise(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Practice Mode</Text>
+            <Text style={styles.modalDesc}>You have active trainers. Are you practicing solo or completing homework?</Text>
+
+            <TouchableOpacity style={styles.modalOptionPrimary} onPress={() => startSession('self')}>
+              <MaterialIcons name="person" size={24} color={Colors.onPrimary} style={{ marginRight: 8 }} />
+              <Text style={styles.modalOptionPrimaryText}>Solo Practice</Text>
+            </TouchableOpacity>
+
+            <View style={styles.modalDivider} />
+
+            {trainers.map(t => (
+              <TouchableOpacity key={t.id} style={styles.modalOptionSecondary} onPress={() => startSession('trainer', t.id)}>
+                <MaterialIcons name="sports" size={24} color={Colors.primary} style={{ marginRight: 8 }} />
+                <Text style={styles.modalOptionSecondaryText}>{t.name}'s Homework</Text>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setSelectedExercise(null)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -296,4 +375,70 @@ const styles = StyleSheet.create({
     color: Colors.primaryFixed,
     marginTop: 4,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end'
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radii.xl,
+    borderTopRightRadius: Radii.xl,
+    padding: Spacing.xl,
+    paddingBottom: Spacing.xxl
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.onSurface,
+    marginBottom: Spacing.xs
+  },
+  modalDesc: {
+    fontSize: 14,
+    color: Colors.onSurfaceVariant,
+    marginBottom: Spacing.xl
+  },
+  modalOptionPrimary: {
+    flexDirection: 'row',
+    backgroundColor: Colors.primary,
+    padding: Spacing.lg,
+    borderRadius: Radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md
+  },
+  modalOptionPrimaryText: {
+    color: Colors.onPrimary,
+    fontWeight: 'bold',
+    fontSize: 16
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: Colors.surfaceVariant,
+    marginVertical: Spacing.sm
+  },
+  modalOptionSecondary: {
+    flexDirection: 'row',
+    backgroundColor: Colors.primaryContainer,
+    padding: Spacing.lg,
+    borderRadius: Radii.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm
+  },
+  modalOptionSecondaryText: {
+    color: Colors.onPrimaryContainer,
+    fontWeight: 'bold',
+    fontSize: 16
+  },
+  modalCancel: {
+    marginTop: Spacing.md,
+    padding: Spacing.md,
+    alignItems: 'center'
+  },
+  modalCancelText: {
+    color: Colors.secondary,
+    fontWeight: 'bold',
+    fontSize: 16
+  }
 });

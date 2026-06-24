@@ -4,11 +4,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { MobileTracker } from '../components/MobileTracker';
 
 export function TrackerScreen({ route, navigation }: any) {
-  const { exerciseName } = route.params;
+  const { exerciseName, mode, trainerId } = route.params;
 
   return (
     <View style={styles.container}>
-      <MobileTracker exerciseType={exerciseName} />
+      <MobileTracker exerciseType={exerciseName} mode={mode} trainerId={trainerId} />
       
       {/* Absolute Back Button floating over the camera */}
       <TouchableOpacity 

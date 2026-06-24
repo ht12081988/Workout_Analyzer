@@ -293,6 +293,8 @@ export class PlieSquatRule {
       qualityScore: 100,
       newAttempt,
       angles: {
+        lKneeAngle,
+        rKneeAngle,
         kneeAngle: avgKneeAngle,
         stanceRatio: stanceRatio,
         torsoAngle: torsoAngle,

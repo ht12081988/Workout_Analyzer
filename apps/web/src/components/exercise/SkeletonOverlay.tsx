@@ -12,6 +12,7 @@ interface SkeletonOverlayProps {
     height: number;
   } | null;
   smoothing?: number;
+  showAngles?: boolean;
 }
 
 const POSE_CONNECTIONS = [
@@ -58,12 +59,23 @@ function getConnectionColor(startName: string, endName: string) {
   return startColor === endColor ? startColor : CENTER_COLOR;
 }
 
+function calculateAngle(a: { x: number; y: number }, b: { x: number; y: number }, c: { x: number; y: number }) {
+  const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+  let angle = Math.abs((radians * 180.0) / Math.PI);
+  if (angle > 180.0) {
+    angle = 360 - angle;
+  }
+  return angle;
+}
+
+
 export const SkeletonOverlay: React.FC<SkeletonOverlayProps> = ({
   pose,
   width,
   height,
   videoSize,
   smoothing = 0.3,
+  showAngles = true,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const smoothedPoseRef = useRef<PoseData | null>(null);
@@ -159,7 +171,109 @@ export const SkeletonOverlay: React.FC<SkeletonOverlayProps> = ({
         ctx.fill();
       }
     });
-  }, [pose, width, height, videoSize, smoothing]);
+
+    // Draw angles for key joints
+    if (showAngles) {
+      // Create virtual points for Torso Angle
+      const leftHip = smoothedPose['LEFT_HIP'];
+      const rightHip = smoothedPose['RIGHT_HIP'];
+      const leftShoulder = smoothedPose['LEFT_SHOULDER'];
+      const rightShoulder = smoothedPose['RIGHT_SHOULDER'];
+
+      if (leftHip && rightHip && leftShoulder && rightShoulder) {
+        smoothedPose['MID_HIP'] = {
+          x: (leftHip.x + rightHip.x) / 2,
+          y: (leftHip.y + rightHip.y) / 2,
+          z: (leftHip.z! + rightHip.z!) / 2,
+          visibility: Math.min(leftHip.visibility || 0, rightHip.visibility || 0)
+        };
+        smoothedPose['MID_SHOULDER'] = {
+          x: (leftShoulder.x + rightShoulder.x) / 2,
+          y: (leftShoulder.y + rightShoulder.y) / 2,
+          z: (leftShoulder.z! + rightShoulder.z!) / 2,
+          visibility: Math.min(leftShoulder.visibility || 0, rightShoulder.visibility || 0)
+        };
+        smoothedPose['VERTICAL_REF'] = {
+          x: smoothedPose['MID_HIP'].x,
+          y: smoothedPose['MID_HIP'].y - 0.5, // Point vertically above the hip
+          z: smoothedPose['MID_HIP'].z,
+          visibility: smoothedPose['MID_HIP'].visibility
+        };
+      }
+
+      const anglesToDraw = [
+        { a: 'LEFT_SHOULDER', b: 'LEFT_ELBOW', c: 'LEFT_WRIST' },
+        { a: 'RIGHT_SHOULDER', b: 'RIGHT_ELBOW', c: 'RIGHT_WRIST' },
+        { a: 'LEFT_SHOULDER', b: 'LEFT_HIP', c: 'LEFT_KNEE' },
+        { a: 'RIGHT_SHOULDER', b: 'RIGHT_HIP', c: 'RIGHT_KNEE' },
+        { a: 'LEFT_HIP', b: 'LEFT_KNEE', c: 'LEFT_ANKLE' },
+        { a: 'RIGHT_HIP', b: 'RIGHT_KNEE', c: 'RIGHT_ANKLE' },
+        // Foot angles
+        { a: 'LEFT_KNEE', b: 'LEFT_ANKLE', c: 'LEFT_FOOT_INDEX' },
+        { a: 'RIGHT_KNEE', b: 'RIGHT_ANKLE', c: 'RIGHT_FOOT_INDEX' },
+        // Torso angle
+        { a: 'VERTICAL_REF', b: 'MID_HIP', c: 'MID_SHOULDER' }
+      ];
+
+      ctx.font = 'bold 21px Inter, sans-serif'; // Increased by ~30% from 16px
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 0; // Disable shadow for the pill
+
+      anglesToDraw.forEach(({ a, b, c }) => {
+        const pA = smoothedPose[a];
+        const pB = smoothedPose[b];
+        const pC = smoothedPose[c];
+
+        if (
+          pA && pB && pC &&
+          (pA.visibility || 0) > 0.5 &&
+          (pB.visibility || 0) > 0.5 &&
+          (pC.visibility || 0) > 0.5
+        ) {
+          const ptA = getCanvasPoint(pA);
+          const ptB = getCanvasPoint(pB);
+          const ptC = getCanvasPoint(pC);
+
+          const angle = calculateAngle(ptA, ptB, ptC);
+          
+          // Offset the text so it doesn't overlap exactly with the joint point
+          // Since LEFT_ joints are on the left side of the mirrored canvas, we subtract to push them further left (outside).
+          // RIGHT_ joints are on the right side of the canvas, so we add to push them further right (outside).
+          let offsetX = b.startsWith('LEFT_') ? -75 : 75;
+          
+          let x = ptB.x + offsetX;
+          let y = ptB.y;
+          
+          // Move torso angle exactly to the pit of the throat (between shoulders)
+          if (b === 'MID_HIP' && c === 'MID_SHOULDER') {
+            x = ptC.x; // MID_SHOULDER X (centered)
+            y = ptC.y; // MID_SHOULDER Y (at throat)
+          }
+          
+          const text = `${Math.round(angle)}°`;
+          const textWidth = ctx.measureText(text).width;
+          const rectWidth = textWidth + 12;
+          const rectHeight = 26;
+
+          // Draw background pill
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(x - rectWidth / 2, y - rectHeight / 2, rectWidth, rectHeight, 8);
+          } else {
+            ctx.rect(x - rectWidth / 2, y - rectHeight / 2, rectWidth, rectHeight);
+          }
+          ctx.fill();
+
+          // Draw Text
+          ctx.fillStyle = '#39FF14'; // Neon Green
+          ctx.fillText(text, x, y + 2); // +2 for visual baseline alignment
+        }
+      });
+    }
+
+  }, [pose, width, height, videoSize, smoothing, showAngles]);
 
   return (
     <canvas

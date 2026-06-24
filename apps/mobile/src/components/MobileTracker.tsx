@@ -22,6 +22,8 @@ import { useVoiceGuide } from '../hooks/useVoiceGuide';
 
 interface MobileTrackerProps {
   exerciseType: string; // E.g., "Pile Squats", "Squats ", etc.
+  mode?: 'self' | 'trainer';
+  trainerId?: string;
 }
 
 // Initialize the native detectPose frame processor plugin
@@ -81,7 +83,7 @@ const Line = ({ p1, p2, color }: { p1: { x: number, y: number }, p2: { x: number
   );
 };
 
-export function MobileTracker({ exerciseType }: MobileTrackerProps) {
+export function MobileTracker({ exerciseType, mode = 'self', trainerId }: MobileTrackerProps) {
   useKeepAwake();
   const navigation = useNavigation<any>();
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -149,6 +151,8 @@ export function MobileTracker({ exerciseType }: MobileTrackerProps) {
   // Fetch exercise ID and rules from the database
   useEffect(() => {
     async function fetchExerciseDetails() {
+      if (!userId) return; // Wait until we have the userId to fetch custom rules
+
       try {
         const res = await fetch(`${API_BASE_URL}/exercises`);
         if (!res.ok) return;
@@ -163,8 +167,13 @@ export function MobileTracker({ exerciseType }: MobileTrackerProps) {
           setExerciseId(match.id);
           engine.setExercise(match.name);
 
-          // Fetch rules
-          const rulesRes = await fetch(`${API_BASE_URL}/exercises/${match.id}/rules`);
+          // Fetch custom rules using the appropriate mode
+          let rulesUrl = `${API_BASE_URL}/exercises/${match.id}/rules?mode=${mode}&customer_id=${userId}`;
+          if (mode === 'trainer' && trainerId) {
+            rulesUrl += `&trainer_id=${trainerId}`;
+          }
+
+          const rulesRes = await fetch(rulesUrl);
           if (rulesRes.ok) {
             const rules = await rulesRes.json();
             engine.setRules(rules);
@@ -175,7 +184,7 @@ export function MobileTracker({ exerciseType }: MobileTrackerProps) {
       }
     }
     fetchExerciseDetails();
-  }, [exerciseType, engine]);
+  }, [exerciseType, engine, userId, mode, trainerId]);
 
   // Active workout timer
   useEffect(() => {
@@ -202,7 +211,12 @@ export function MobileTracker({ exerciseType }: MobileTrackerProps) {
         const res = await fetch(`${API_BASE_URL}/sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customer_id: userId, exercise_id: exerciseId })
+          body: JSON.stringify({ 
+            customer_id: userId, 
+            exercise_id: exerciseId,
+            recorded_mode: mode,
+            trainer_id: trainerId || null
+          })
         });
         if (!res.ok) return null;
 
@@ -263,11 +277,30 @@ export function MobileTracker({ exerciseType }: MobileTrackerProps) {
     if (!sid || !attemptId) return;
 
     try {
-      // 1. Log Start, Top, and End frames
+      // 1. Log Start, Top, End, and intermediate frames
+      const startMs = new Date(stats.startTime).getTime();
+      const topMs = stats.topTime ? new Date(stats.topTime).getTime() : startMs + 1000;
+      const endMs = stats.endTime ? new Date(stats.endTime).getTime() : topMs + 1000;
+      
+      const getFrameNumber = (ms: number) => {
+        if (!sessionStartTime) return Math.round((ms - startMs) / 33.333) + 1;
+        return Math.round((ms - sessionStartTime) / 33.333);
+      };
+
+      // Interpolate time for descending and ascending frames to maintain realistic velocity
+      const desc1Ms = startMs + (topMs - startMs) * 0.33;
+      const desc2Ms = startMs + (topMs - startMs) * 0.66;
+      const asc1Ms = topMs + (endMs - topMs) * 0.33;
+      const asc2Ms = topMs + (endMs - topMs) * 0.66;
+
       const keyFrames = [
-        { type: 'start', landmarks: stats.startFrameLandmarks, angles: stats.startFrameAngles, frameNumber: 1 },
-        ...(stats.topFrameLandmarks ? [{ type: 'top', landmarks: stats.topFrameLandmarks, angles: stats.topFrameAngles, frameNumber: 15 }] : []),
-        { type: 'end', landmarks: stats.endFrameLandmarks, angles: stats.endFrameAngles, frameNumber: 30 }
+        { type: 'start', landmarks: stats.startFrameLandmarks, angles: stats.startFrameAngles, frameNumber: getFrameNumber(startMs), timestamp: stats.startTime },
+        ...(stats.descendingFrame1Landmarks ? [{ type: 'desc_1', landmarks: stats.descendingFrame1Landmarks, angles: stats.descendingFrame1Angles, frameNumber: getFrameNumber(desc1Ms), timestamp: new Date(desc1Ms).toISOString() }] : []),
+        ...(stats.descendingFrame2Landmarks ? [{ type: 'desc_2', landmarks: stats.descendingFrame2Landmarks, angles: stats.descendingFrame2Angles, frameNumber: getFrameNumber(desc2Ms), timestamp: new Date(desc2Ms).toISOString() }] : []),
+        ...(stats.topFrameLandmarks ? [{ type: 'top', landmarks: stats.topFrameLandmarks, angles: stats.topFrameAngles, frameNumber: getFrameNumber(topMs), timestamp: stats.topTime }] : []),
+        ...(stats.ascendingFrame1Landmarks ? [{ type: 'asc_1', landmarks: stats.ascendingFrame1Landmarks, angles: stats.ascendingFrame1Angles, frameNumber: getFrameNumber(asc1Ms), timestamp: new Date(asc1Ms).toISOString() }] : []),
+        ...(stats.ascendingFrame2Landmarks ? [{ type: 'asc_2', landmarks: stats.ascendingFrame2Landmarks, angles: stats.ascendingFrame2Angles, frameNumber: getFrameNumber(asc2Ms), timestamp: new Date(asc2Ms).toISOString() }] : []),
+        { type: 'end', landmarks: stats.endFrameLandmarks, angles: stats.endFrameAngles, frameNumber: getFrameNumber(endMs), timestamp: stats.endTime }
       ];
 
       for (const frame of keyFrames) {
@@ -312,7 +345,8 @@ export function MobileTracker({ exerciseType }: MobileTrackerProps) {
             quality_score: stats.qualityScore,
             duration_seconds: stats.durationSeconds,
             status: stats.status,
-            attempt_id: attemptId
+            attempt_id: attemptId,
+            frame_data: JSON.stringify(stats.frameData)
           })
         });
       }
@@ -348,7 +382,7 @@ export function MobileTracker({ exerciseType }: MobileTrackerProps) {
     if (latestAttempt && latestAttempt.id !== lastAttemptIdRef.current) {
       lastAttemptIdRef.current = latestAttempt.id;
 
-      const isSuccess = latestAttempt.status === 'success' || latestAttempt.success === true;
+      const isSuccess = latestAttempt.status === 'success' || (latestAttempt as any).success === true;
       if (isSuccess) {
         speech.speakRepCount(newState.repCount, 100);
       } else {
@@ -601,12 +635,12 @@ export function MobileTracker({ exerciseType }: MobileTrackerProps) {
           <View style={styles.topFeedbackContainer} pointerEvents="none">
             <View style={[
               styles.feedbackToast,
-              (feedback[0].includes('Widen') || feedback[0].includes('Keep') || feedback[0].includes('Knees') || feedback[0].includes('Partial'))
+              speech.getCueType(feedback[0]) === 'warning'
                 ? styles.feedbackWarn
                 : styles.feedbackSuccess
             ]}>
               <Text style={styles.feedbackToastText}>
-                {feedback[0]}
+                {speech.getDisplayCue(feedback[0])}
               </Text>
             </View>
           </View>
@@ -622,7 +656,7 @@ export function MobileTracker({ exerciseType }: MobileTrackerProps) {
               return (
                 <View key={index} style={[styles.logCardNew, isSuccess ? styles.logSuccessCard : styles.logFailCard]}>
                   <Text style={styles.logCardTextNew}>
-                    {attemptNumber}. {log.reason || (isSuccess ? 'Good form' : 'Deviation detected')}
+                    {attemptNumber}. {speech.getDisplayCue(log.reason) || (isSuccess ? 'Good form' : 'Deviation detected')}
                   </Text>
                   <View style={[styles.logBadge, isSuccess ? styles.logBadgeSuccess : styles.logBadgeFail]}>
                     <Text style={styles.logBadgeText}>{isSuccess ? 'SUCCESS' : 'FAILED'}</Text>

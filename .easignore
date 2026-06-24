@@ -1,0 +1,19 @@
+node_modules/
+.turbo/
+.next/
+dist/
+.agents/
+IndiaNIC Design System/
+video-app-demo/
+demo-video/
+video-presentation/
+Lib/
+Scripts/
+Docs/
+backup.dump
+.expo/
+
+**/build
+**/.gradle
+**/.cxx
+**/Pods

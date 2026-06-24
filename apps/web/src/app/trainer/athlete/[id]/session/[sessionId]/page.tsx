@@ -42,11 +42,11 @@ type SessionDetail = {
 };
 
 const API_BASE_URL = '/api';
-const AUTH_USER_STORAGE_KEY = 'visionfit.auth.user';
+const AUTH_USER_STORAGE_KEY = 'visionfit.auth.trainer';
 
 export default function SessionDetailPage() {
   const router = useRouter();
-  const { id } = useParams();
+  const { id, sessionId } = useParams();
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [analytics, setAnalytics] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'performance' | 'attempts' | 'replay'>('performance');
@@ -103,16 +103,16 @@ export default function SessionDetailPage() {
     fetchAnalytics();
     fetchFrames();
     fetchAngles();
-  }, [id, router]);
+  }, [id, sessionId, router]);
 
   const fetchSessionDetails = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${id}`);
-      if (!response.ok) return;
+      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}`);
+      if (!response.ok) throw new Error('Session not found');
       const data = await response.json();
       setSession(data);
     } catch (err) {
-      console.error('Session fetch failed', err);
+      setError('Could not retrieve session details.');
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ export default function SessionDetailPage() {
 
   const fetchAnalytics = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${id}/analytics`);
+      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/analytics`);
       if (!response.ok) return;
       const data = await response.json();
       setAnalytics(data);
@@ -131,7 +131,7 @@ export default function SessionDetailPage() {
 
   const fetchFrames = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${id}/frames`);
+      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/frames`);
       if (!response.ok) return;
       const data = await response.json();
       setFrames(data);
@@ -142,7 +142,7 @@ export default function SessionDetailPage() {
 
   const fetchAngles = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${id}/angles`);
+      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/angles`);
       if (!response.ok) return;
       const data = await response.json();
       setAngles(data);
@@ -561,18 +561,9 @@ export default function SessionDetailPage() {
   );
 
   return (
-    <main className="min-h-screen bg-surface pb-28 text-on-surface">
-      <nav className="fixed left-0 top-0 z-50 flex h-16 sm:h-20 w-full items-center justify-between bg-surface/30 px-4 shadow-sm backdrop-blur-xl md:px-8 border-b border-outline-variant/10">
+    <main className="min-h-screen bg-surface pb-28 text-on-surface relative">
+      <nav className="sticky top-0 z-40 flex h-16 w-full items-center justify-between bg-surface/80 px-4 shadow-sm backdrop-blur-xl md:px-8 border-b border-outline-variant/10 mb-8">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 max-w-[35%] xs:max-w-[45%] mr-2">
-          <button
-            onClick={() => router.push('/history')}
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-surface-container-high text-primary hover:bg-primary hover:text-on-primary transition-all"
-          >
-            <span className="material-symbols-outlined">arrow_back</span>
-          </button>
-          <span className="hidden font-headline text-xl font-black italic text-primary lg:block">VisionFiT</span>
-
-          <div className="h-8 w-[1px] bg-outline-variant/20 mx-2 hidden lg:block" />
 
           {session && (
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -635,6 +626,8 @@ export default function SessionDetailPage() {
             </button>
           </div>
         </div>
+
+        <div className="hidden md:flex items-center justify-end col-span-1" />
       </nav>
 
       <motion.section
@@ -647,7 +640,7 @@ export default function SessionDetailPage() {
             transition: { staggerChildren: 0.1 }
           }
         }}
-        className="mx-auto max-w-7xl px-4 pb-16 pt-24 md:px-16"
+        className="mx-auto max-w-7xl px-4 pb-16 pt-8 md:px-16"
       >
         {/* Quick Stats Summary */}
         {activeTab !== 'replay' && (
@@ -1054,8 +1047,7 @@ export default function SessionDetailPage() {
                   {session.attempts.length === 0 ? (
                     <p className="font-body text-on-surface-variant italic">No setup attempts recorded.</p>
                   ) : (
-                    session.attempts.map((attempt) => {
-                      // Find the associated rep to get its ID for linking to frames
+                    session.attempts.map((attempt, index) => {
                       const associatedRep = session.reps?.find(r => r.attempt_id === attempt.id);
                       const attemptFrames = frames.filter(f => f.rep_id === attempt.id);
                       const hasReplay = attempt.status === 'success' && attemptFrames.length > 0;
@@ -1136,7 +1128,7 @@ export default function SessionDetailPage() {
                 </div>
               </div>
             </div>
-          )} 
+          )}
           {activeTab === 'replay' && sessionReplay.activeAttempts.length > 0 && (
             <div className="lg:col-span-2 space-y-8">
               <div className="w-full max-w-4xl mx-auto bg-surface-container rounded-3xl overflow-hidden shadow-2xl border border-outline-variant/20 flex flex-col">
@@ -1157,7 +1149,6 @@ export default function SessionDetailPage() {
                 >
                   {!sessionReplay.isComplete ? (
                     <>
-
                       <div className="w-full h-full flex items-center justify-center">
                         <SkeletonReplay
                           exerciseName={session.exercise_name}

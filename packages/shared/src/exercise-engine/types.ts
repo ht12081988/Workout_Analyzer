@@ -45,11 +45,22 @@ export interface RepStats {
     frameNumber: number;
   }>;
   startFrameLandmarks: PoseData;
+  descendingFrame1Landmarks?: PoseData;
+  descendingFrame2Landmarks?: PoseData;
   topFrameLandmarks?: PoseData;
+  ascendingFrame1Landmarks?: PoseData;
+  ascendingFrame2Landmarks?: PoseData;
   endFrameLandmarks: PoseData;
+  
   startFrameAngles: Record<string, number>;
+  descendingFrame1Angles?: Record<string, number>;
+  descendingFrame2Angles?: Record<string, number>;
   topFrameAngles?: Record<string, number>;
-  endFrameAngles: Record<string, number>;
+  ascendingFrame1Angles?: Record<string, number>;
+  ascendingFrame2Angles?: Record<string, number>;
+
+  _descendingFramesBuffer?: Array<{pose: PoseData, angles: Record<string, number>}>;
+  _ascendingFramesBuffer?: Array<{pose: PoseData, angles: Record<string, number>}>;
 }
 
 export interface AttemptLogEntry {
