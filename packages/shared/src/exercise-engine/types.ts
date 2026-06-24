@@ -58,6 +58,7 @@ export interface RepStats {
   topFrameAngles?: Record<string, number>;
   ascendingFrame1Angles?: Record<string, number>;
   ascendingFrame2Angles?: Record<string, number>;
+  endFrameAngles: Record<string, number>;
 
   _descendingFramesBuffer?: Array<{pose: PoseData, angles: Record<string, number>}>;
   _ascendingFramesBuffer?: Array<{pose: PoseData, angles: Record<string, number>}>;
