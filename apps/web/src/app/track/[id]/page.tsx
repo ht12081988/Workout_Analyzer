@@ -264,7 +264,7 @@ export default function TrackPage() {
 
     try {
       // 1. Log key frames (Start, Top, End, plus intermediate phases) against the ATTEMPT ID
-      const keyFrames = [
+      const keyFrames: any[] = [
         { type: 'start', landmarks: stats.startFrameLandmarks, angles: stats.startFrameAngles, frameNumber: 1 },
         ...(stats.descendingFrame1Landmarks ? [{ type: 'desc_1', landmarks: stats.descendingFrame1Landmarks, angles: stats.descendingFrame1Angles, frameNumber: Math.floor(stats.durationSeconds * 15 * 0.33) }] : []),
         ...(stats.descendingFrame2Landmarks ? [{ type: 'desc_2', landmarks: stats.descendingFrame2Landmarks, angles: stats.descendingFrame2Angles, frameNumber: Math.floor(stats.durationSeconds * 15 * 0.66) }] : []),
