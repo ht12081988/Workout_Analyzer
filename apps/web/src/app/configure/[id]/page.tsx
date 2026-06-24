@@ -38,7 +38,7 @@ export default function AthleteConfigurationPage() {
       .then(data => {
         const exercisesData = Array.isArray(data) ? data : (data?.data || []);
         if (exercisesData && exercisesData.length > 0) {
-          const targetExercise = exercisesData.find(ex => String(ex.id) === String(initialExerciseId));
+          const targetExercise = exercisesData.find((ex: any) => String(ex.id) === String(initialExerciseId));
           setSelectedExercise(targetExercise || exercisesData[0]);
         }
         setLoadingEx(false);
