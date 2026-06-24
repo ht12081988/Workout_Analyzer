@@ -30,7 +30,7 @@ export default function TrainerLayout({
   useEffect(() => {
     if (pathname.startsWith("/trainer/athlete/") && trainer) {
       const athleteId = pathname.split("/")[3];
-      fetch(`http://localhost:5002/trainer/${trainer.id}/athletes`)
+      fetch(`/api/trainer/${trainer.id}/athletes`)
         .then(res => res.json())
         .then(data => {
           const found = data.find((a: any) => a.id === athleteId);

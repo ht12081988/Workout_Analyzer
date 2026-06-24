@@ -37,7 +37,7 @@ export default function TrainerDashboardPage() {
 
   const fetchAthletes = async (id: string) => {
     try {
-      const res = await fetch(`http://localhost:5002/trainer/${id}/athletes`);
+      const res = await fetch(`/api/trainer/${id}/athletes`);
       const data = await res.json();
       setAthletes(data || []);
     } catch (err) {
@@ -55,7 +55,7 @@ export default function TrainerDashboardPage() {
     setAthletes(prev => prev.map(a => a.id === athleteId ? { ...a, status: newStatus } : a));
     
     try {
-      const res = await fetch(`http://localhost:5002/trainer/${trainerId}/athletes/${athleteId}/status`, {
+      const res = await fetch(`/api/trainer/${trainerId}/athletes/${athleteId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -77,7 +77,7 @@ export default function TrainerDashboardPage() {
 
     setIsAdding(true);
     try {
-      const res = await fetch("http://localhost:5002/trainer/athletes/add", {
+      const res = await fetch("/api/trainer/athletes/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ trainer_id: trainerId, email: newAthleteEmail }),

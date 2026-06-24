@@ -17,7 +17,7 @@ export default function TrainerLoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:5002/trainer/login", {
+      const res = await fetch("/api/trainer/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

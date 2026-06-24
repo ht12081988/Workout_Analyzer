@@ -25,7 +25,7 @@ export default function SessionsPage() {
 
   useEffect(() => {
     if (!trainerId) return;
-    fetch(`http://localhost:5002/trainer/${trainerId}/athletes/${athleteId}/sessions`)
+    fetch(`/api/trainer/${trainerId}/athletes/${athleteId}/sessions`)
       .then(res => res.json())
       .then(data => {
         setSessions(Array.isArray(data) ? data : (data?.data || []));
