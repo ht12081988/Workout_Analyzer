@@ -16,6 +16,9 @@ type Rep = {
   duration_seconds: number;
   status: string;
   attempt_id?: string;
+  start_frame_time?: any;
+  top_frame_time?: any;
+  end_frame_time?: any;
 };
 
 type Attempt = {
