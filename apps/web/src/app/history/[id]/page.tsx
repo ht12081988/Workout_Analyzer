@@ -1057,7 +1057,7 @@ export default function SessionDetailPage() {
                   {session.attempts.length === 0 ? (
                     <p className="font-body text-on-surface-variant italic">No setup attempts recorded.</p>
                   ) : (
-                    session.attempts.map((attempt) => {
+                    session.attempts.map((attempt, index) => {
                       // Find the associated rep to get its ID for linking to frames
                       const associatedRep = session.reps?.find(r => r.attempt_id === attempt.id);
                       const attemptFrames = frames.filter(f => f.rep_id === attempt.id);
