@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 
 export default function SessionsPage() {
   const params = useParams();
-  const athleteId = params.id as string;
+  const athleteId = params?.id as string;
   const router = useRouter();
   const [trainerId, setTrainerId] = useState<string | null>(null);
 

@@ -28,7 +28,7 @@ export default function TrainerLayout({
   }, [pathname]);
 
   useEffect(() => {
-    if (pathname.startsWith("/trainer/athlete/") && trainer) {
+    if (pathname?.startsWith("/trainer/athlete/") && trainer) {
       const athleteId = pathname.split("/")[3];
       fetch(`/api/trainer/${trainer.id}/athletes`)
         .then(res => res.json())
@@ -54,14 +54,14 @@ export default function TrainerLayout({
   let breadcrumbs: React.ReactNode[] = [];
 
   if (athleteName) {
-    if (pathname.includes('/exercises')) {
+    if (pathname?.includes('/exercises')) {
       pageTitle = "Exercise Configuration";
       breadcrumbs = [
         <Link key="1" href="/trainer" className="text-primary hover:text-primary/80 transition-colors">Athletes</Link>,
         <Link key="2" href={`/trainer/athlete/${pathname.split('/')[3]}/exercises`} className="text-primary hover:text-primary/80 transition-colors">{athleteName}</Link>,
         <span key="3" className="text-on-surface-variant">Exercise Configuration</span>
       ];
-    } else if (pathname.includes('/session/') && !pathname.endsWith('/sessions')) {
+    } else if (pathname?.includes('/session/') && !pathname?.endsWith('/sessions')) {
       pageTitle = "Session Detail";
       breadcrumbs = [
         <Link key="1" href="/trainer" className="text-primary hover:text-primary/80 transition-colors">Athletes</Link>,
@@ -69,7 +69,7 @@ export default function TrainerLayout({
         <Link key="3" href={`/trainer/athlete/${pathname.split('/')[3]}/sessions`} className="text-primary hover:text-primary/80 transition-colors">Session History</Link>,
         <span key="4" className="text-on-surface-variant">Session Detail</span>
       ];
-    } else if (pathname.includes('/sessions')) {
+    } else if (pathname?.includes('/sessions')) {
       pageTitle = "Session History";
       breadcrumbs = [
         <Link key="1" href="/trainer" className="text-primary hover:text-primary/80 transition-colors">Athletes</Link>,
@@ -116,7 +116,7 @@ export default function TrainerLayout({
           <nav className="space-y-2 px-4">
             <Link 
               href="/trainer" 
-              className={`flex items-center ${isSidebarOpen ? 'gap-4 px-6 py-3' : 'justify-center p-3'} rounded-full text-sm font-bold transition-all ${pathname === '/trainer' || pathname.startsWith('/trainer/athlete') ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'}`} 
+              className={`flex items-center ${isSidebarOpen ? 'gap-4 px-6 py-3' : 'justify-center p-3'} rounded-full text-sm font-bold transition-all ${pathname === '/trainer' || pathname?.startsWith('/trainer/athlete') ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'}`} 
               title="Athletes"
             >
               <span className="material-symbols-outlined text-[20px]">group</span>

@@ -49,7 +49,7 @@ const AUTH_USER_STORAGE_KEY = 'visionfit.auth.trainer';
 
 export default function SessionDetailPage() {
   const router = useRouter();
-  const { id, sessionId } = useParams();
+  const { id, sessionId } = useParams() || {};
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [analytics, setAnalytics] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'performance' | 'attempts' | 'replay'>('performance');

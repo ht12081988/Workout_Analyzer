@@ -9,7 +9,7 @@ import { getParamConfig, RULE_SECTION_DESCRIPTIONS } from "@/lib/ruleConfig";
 export default function AthleteConfigurationPage() {
   const params = useParams();
   const router = useRouter();
-  const initialExerciseId = params.id as string;
+  const initialExerciseId = params?.id as string;
   const [athleteId, setAthleteId] = useState<string | null>(null);
 
   useEffect(() => {

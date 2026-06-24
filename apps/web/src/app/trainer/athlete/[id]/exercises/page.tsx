@@ -8,7 +8,7 @@ import { getParamConfig, RULE_SECTION_DESCRIPTIONS } from "@/lib/ruleConfig";
 
 export default function ExercisesPage() {
   const params = useParams();
-  const athleteId = params.id as string;
+  const athleteId = params?.id as string;
   const router = useRouter();
   const [trainerId, setTrainerId] = useState<string | null>(null);
 

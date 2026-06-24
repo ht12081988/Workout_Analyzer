@@ -23,9 +23,9 @@ export default function TrackPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const exerciseId = params.id as string;
-  const mode = searchParams.get('mode') || 'self';
-  const trainerId = searchParams.get('trainer_id');
+  const exerciseId = params?.id as string;
+  const mode = searchParams?.get('mode') || 'self';
+  const trainerId = searchParams?.get('trainer_id');
 
   const [engine] = useState(() => new MovementEngine());
   const [speech] = useState(() => new SpeechManager());
