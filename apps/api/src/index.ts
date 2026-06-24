@@ -608,8 +608,12 @@ app.post('/athlete/rules', async (req, res) => {
 });
 
 
-app.listen(port, '0.0.0.0', async () => {
-  console.log(`Server is running on http://0.0.0.0:${port}`);
-  await testConnection();
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, '0.0.0.0', async () => {
+    console.log(`Server is running on http://0.0.0.0:${port}`);
+    await testConnection();
+  });
+}
+
+export default app;
  
