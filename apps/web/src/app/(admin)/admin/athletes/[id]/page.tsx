@@ -10,7 +10,7 @@ export default function AthleteSessionsPage() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const athleteId = params.id as string;
+  const athleteId = params?.id as string;
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;

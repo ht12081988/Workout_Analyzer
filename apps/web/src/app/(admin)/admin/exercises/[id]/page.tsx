@@ -238,7 +238,7 @@ export default function EditExerciseRulesPage() {
       }
     }
     load();
-  }, [params.id]);
+  }, [params?.id]);
 
   const handleSave = async () => {
     const phases = Object.keys(phasesConfig).map(name => ({
@@ -249,7 +249,7 @@ export default function EditExerciseRulesPage() {
     }));
 
     try {
-      const res = await fetch(`/api/admin/exercises/${params.id}`, {
+      const res = await fetch(`/api/admin/exercises/${params?.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
