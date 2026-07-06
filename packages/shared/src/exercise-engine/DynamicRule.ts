@@ -1,6 +1,6 @@
 import { IExerciseRule } from './MovementEngine';
 import { MovementPhase, PoseData, ExerciseState, AttemptLogEntry, POSE_LANDMARKS } from './types';
-import { calculateAngle, calculateDistance } from './angle-utils';
+import { calculateAngle } from './angle-utils';
 
 export class DynamicRule implements IExerciseRule {
   private rules: any[] = [];

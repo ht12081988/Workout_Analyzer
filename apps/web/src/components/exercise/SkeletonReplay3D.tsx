@@ -491,7 +491,7 @@ export const SkeletonReplay3D: React.FC<SkeletonReplayProps> = ({
             frames={sortedFrames}
             isPlaying={isPlaying}
             isPaused={isPaused}
-            timestampRef={timestampRef}
+            timestampRef={timestampRef as any}
             baseMs={baseMs}
             onComplete={() => {
               setIsPlaying(false);

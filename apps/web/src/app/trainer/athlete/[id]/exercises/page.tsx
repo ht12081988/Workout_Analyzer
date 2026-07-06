@@ -40,7 +40,7 @@ export default function ExercisesPage() {
   const getDynamicConfig = (key: string) => {
     const dbMetric = metricsLibrary.find(m => m.metric_key === key);
     if (dbMetric) {
-      return { min: parseFloat(dbMetric.min_val), max: parseFloat(dbMetric.max_val), step: parseFloat(dbMetric.step_val), direction: dbMetric.direction, description: dbMetric.description };
+      return { min: parseFloat(dbMetric.min_val), max: parseFloat(dbMetric.max_val), step: parseFloat(dbMetric.step_val), direction: dbMetric.direction, description: dbMetric.description, imageUrl: undefined } as any;
     }
     return getParamConfig(key);
   };

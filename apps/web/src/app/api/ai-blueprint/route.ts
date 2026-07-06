@@ -86,7 +86,7 @@ ${metricRules}
       }
     });
 
-    const text = response.text;
+    const text = response.text || "{}";
     const configData = JSON.parse(text);
 
     return NextResponse.json(configData);

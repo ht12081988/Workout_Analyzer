@@ -939,15 +939,15 @@ export default function SessionDetailPage() {
                                     {allMarkers.map((m, mIdx) => (
                                       <React.Fragment key={mIdx}>
                                         {/* Start and End frames: Solid and darker */}
-                                        <ReferenceLine isFront={true} x={m.start} stroke="var(--fg-mute)" strokeWidth={1} strokeOpacity={0.8} />
-                                        <ReferenceLine isFront={true} x={m.end} stroke="var(--fg-mute)" strokeWidth={1} strokeOpacity={0.8} />
+                                        <ReferenceLine x={m.start} stroke="var(--fg-mute)" strokeWidth={1} strokeOpacity={0.8} />
+                                        <ReferenceLine x={m.end} stroke="var(--fg-mute)" strokeWidth={1} strokeOpacity={0.8} />
 
                                         {/* Mid frame: Dotted for peak visibility */}
-                                        <ReferenceLine isFront={true} x={m.mid} stroke="var(--flame)" strokeDasharray="4 4" strokeWidth={1.5} />
+                                        <ReferenceLine x={m.mid} stroke="var(--flame)" strokeDasharray="4 4" strokeWidth={1.5} />
 
                                         {/* Rep Background Area */}
                                         <ReferenceArea
-                                          isFront={true}
+                                         
                                           x1={m.start}
                                           x2={m.end}
                                           fill="var(--flame)"
@@ -957,7 +957,7 @@ export default function SessionDetailPage() {
                                         {/* Inter-rep Gap: Shaded Light Red */}
                                         {mIdx < allMarkers.length - 1 && (
                                           <ReferenceArea
-                                            isFront={true}
+                                           
                                             x1={m.end}
                                             x2={allMarkers[mIdx + 1].start}
                                             fill="var(--err)"

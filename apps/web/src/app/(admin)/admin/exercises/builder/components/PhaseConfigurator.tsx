@@ -16,6 +16,9 @@ interface PhaseConfiguratorProps {
   phaseName: string;
   entryConditions: RuleConfig[];
   formChecks: RuleConfig[];
+  isSetupPhase?: boolean;
+  onUpdateSetupPhase?: (val: boolean) => void;
+  onUpdatePhaseName?: (newName: string) => void;
   onUpdateEntryConditions: (rules: RuleConfig[]) => void;
   onUpdateFormChecks: (rules: RuleConfig[]) => void;
 }
@@ -24,12 +27,12 @@ export const PhaseConfigurator: React.FC<PhaseConfiguratorProps> = ({
   phaseName,
   entryConditions,
   formChecks,
-  onUpdateEntryConditions,
-  onUpdateFormChecks,
   isSetupPhase,
   onUpdateSetupPhase,
-  onUpdatePhaseName
-}: PhaseConfiguratorProps & { isSetupPhase?: boolean, onUpdateSetupPhase?: (val: boolean) => void, onUpdatePhaseName?: (name: string) => void }) => {
+  onUpdatePhaseName,
+  onUpdateEntryConditions,
+  onUpdateFormChecks
+}) => {
 
   const [metricsLibrary, setMetricsLibrary] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'transitions' | 'formChecks'>('transitions');
