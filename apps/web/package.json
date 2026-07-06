@@ -3,14 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "cross-env RUST_MIN_STACK=8388608 NODE_OPTIONS=--max-old-space-size=4096 next dev",
+    "dev": "cross-env RUST_MIN_STACK=8388608 NODE_OPTIONS=--max-old-space-size=4096 next dev -H 0.0.0.0",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@google/genai": "^2.10.0",
     "@mediapipe/tasks-vision": "^0.10.35",
     "@prisma/client": "^6.19.3",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "@types/canvas-confetti": "^1.9.0",
     "@workout/shared": "*",
     "canvas-confetti": "^1.9.4",
@@ -21,7 +24,9 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hot-toast": "^2.6.0",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "serverless-http": "^4.0.0",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

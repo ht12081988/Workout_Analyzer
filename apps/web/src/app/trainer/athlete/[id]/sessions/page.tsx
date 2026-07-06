@@ -50,15 +50,15 @@ export default function SessionsPage() {
     return dateStr.includes(s) || exerciseName.includes(s);
   });
 
-  if (loading) return <div className="p-8 text-on-surface-variant font-body animate-pulse">Loading session history...</div>;
+  if (loading) return <div className="p-8 text-fg-mute font-body animate-pulse">Loading session history...</div>;
 
   return (
-    <div className="w-full h-full flex flex-col p-10 bg-surface-container-low/50">
+    <div className="w-full h-full flex flex-col p-10 bg-bg">
       <div className="space-y-6">
-      <div className="flex justify-between items-center bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-outline/5">
+      <div className="flex justify-between items-center bg-surface-card p-6 rounded-2xl shadow-card border border-border">
         <div>
-          <h2 className="text-xl font-bold font-headline text-on-surface">Trainer Mode History</h2>
-          <p className="text-sm text-on-surface-variant mt-1 font-body">
+          <h2 className="h3 text-fg">Trainer Mode History</h2>
+          <p className="text-sm text-fg-mute mt-1 font-body">
             Displaying workouts completed under your supervision.
           </p>
         </div>
@@ -71,29 +71,29 @@ export default function SessionsPage() {
             placeholder="Search by date or exercise..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-72 bg-surface-container text-on-surface text-sm rounded-full py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow"
+            className="w-72 bg-bg text-fg text-sm rounded-lg py-3 pl-11 pr-4 border border-border focus:outline-none focus:ring-2 focus:ring-flame/20 transition-shadow"
           />
         </div>
       </div>
       
-      <div className="bg-surface-container-lowest rounded-3xl shadow-sm border border-outline/5 overflow-hidden">
+      <div className="bg-surface-card rounded-2xl shadow-card border border-border overflow-hidden">
         {filteredSessions.length === 0 ? (
-          <div className="p-12 text-center text-on-surface-variant font-body">
+          <div className="p-12 text-center text-fg-mute font-body">
             {search ? "No sessions match your search." : "This athlete hasn't recorded any workouts under your Trainer Mode yet."}
           </div>
         ) : (
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-outline/10">
-                <th className="py-5 px-8 text-[11px] font-label font-bold text-outline uppercase tracking-wider">Date</th>
-                <th className="py-5 px-6 text-[11px] font-label font-bold text-outline uppercase tracking-wider">Exercise</th>
-                <th className="py-5 px-6 text-[11px] font-label font-bold text-outline uppercase tracking-wider">Total Attempts</th>
-                <th className="py-5 px-6 text-[11px] font-label font-bold text-outline uppercase tracking-wider">Reps</th>
-                <th className="py-5 px-6 text-[11px] font-label font-bold text-outline uppercase tracking-wider">Duration</th>
-                <th className="py-5 px-8 text-[11px] font-label font-bold text-outline uppercase tracking-wider text-right">Avg Accuracy</th>
+              <tr className="border-b border-border">
+                <th className="py-5 px-8 kicker text-fg-mute">Date</th>
+                <th className="py-5 px-6 kicker text-fg-mute">Exercise</th>
+                <th className="py-5 px-6 kicker text-fg-mute">Total Attempts</th>
+                <th className="py-5 px-6 kicker text-fg-mute">Reps</th>
+                <th className="py-5 px-6 kicker text-fg-mute">Duration</th>
+                <th className="py-5 px-8 kicker text-fg-mute text-right">Avg Accuracy</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-outline/5">
+            <tbody className="divide-y divide-border">
               {filteredSessions.map((session) => {
                 const accuracy = Number(session.average_accuracy);
                 const isGood = accuracy > 85;
@@ -103,35 +103,35 @@ export default function SessionsPage() {
                   <tr 
                     key={session.id} 
                     onClick={() => router.push(`/trainer/athlete/${athleteId}/session/${session.id}`)}
-                    className="hover:bg-surface-container transition-colors cursor-pointer"
+                    className="hover:bg-surface-elev transition-colors cursor-pointer"
                   >
-                    <td className="py-5 px-8 text-sm text-on-surface font-medium">
+                    <td className="py-5 px-8 text-sm text-fg font-medium">
                       {new Date(session.start_time).toLocaleDateString(undefined, {
                         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
                       })}
                     </td>
-                    <td className="py-5 px-6 text-sm text-on-surface font-headline font-bold">
+                    <td className="py-5 px-6 font-bold text-sm text-fg">
                       {session.exercise_name || session.exercise_id}
                     </td>
-                    <td className="py-5 px-6 text-sm text-on-surface-variant font-medium">
+                    <td className="py-5 px-6 text-sm text-fg-mute font-medium">
                       {session.total_attempts || 0}
                     </td>
-                    <td className="py-5 px-6 text-sm text-on-surface-variant">
+                    <td className="py-5 px-6 text-sm text-fg-mute">
                       {session.total_reps}
                     </td>
-                    <td className="py-5 px-6 text-sm text-on-surface-variant">
+                    <td className="py-5 px-6 text-sm text-fg-mute">
                       {Math.floor(session.total_duration_seconds / 60)}m {session.total_duration_seconds % 60}s
                     </td>
                     <td className="py-5 px-8 text-right">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-label font-bold tracking-wider uppercase border ${
-                        isGood ? 'bg-secondary-container/30 text-secondary-fixed-variant border-secondary-fixed-dim/30' :
-                        isFair ? 'bg-surface-container-high text-on-surface-variant border-outline/10' :
-                        'bg-error-container/50 text-error border-error/20'
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md kicker border ${
+                        isGood ? 'bg-ok/10 text-ok border-ok/20' :
+                        isFair ? 'bg-warn/10 text-warn border-warn/20' :
+                        'bg-err/10 text-err border-err/20'
                       }`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${
-                          isGood ? 'bg-secondary-fixed-variant' :
-                          isFair ? 'bg-outline' :
-                          'bg-error'
+                          isGood ? 'bg-ok' :
+                          isFair ? 'bg-warn' :
+                          'bg-err'
                         }`}></span>
                         {accuracy}%
                       </span>

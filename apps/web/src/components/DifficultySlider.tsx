@@ -42,27 +42,27 @@ export function DifficultySlider({ label, value, min, max, step = 1, direction, 
   };
 
   return (
-    <div className="flex flex-col gap-3 w-full my-4 bg-surface-container-lowest p-4 rounded-2xl border border-outline/10 shadow-sm transition-all hover:border-outline/20">
-      <div className="flex justify-between items-start text-sm font-label font-bold text-on-surface">
+    <div className="flex flex-col gap-3 w-full my-4 bg-surface-elev p-4 rounded-2xl border border-border shadow-sm transition-all hover:border-border">
+      <div className="flex justify-between items-start text-sm kicker text-fg">
         <div className="flex flex-col relative">
           <div className="flex items-center gap-2 w-max">
             <span className="capitalize text-base">{label.replace(/_/g, ' ')}</span>
             {imageUrl && (
               <div className="relative flex items-center group cursor-help">
-                <span className="material-symbols-outlined text-[16px] text-on-surface-variant opacity-70 group-hover:opacity-100 transition-opacity">info</span>
+                <span className="material-symbols-outlined text-[16px] text-fg-mute opacity-70 group-hover:opacity-100 transition-opacity">info</span>
                 
                 {/* Tooltip */}
-                <div className="absolute left-8 top-1/2 -translate-y-1/2 z-50 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all duration-200 pointer-events-none w-80 bg-surface-container-highest rounded-2xl shadow-2xl border border-outline/10 p-3 transform group-hover:translate-x-2">
-                  <div className="w-full aspect-square rounded-xl overflow-hidden bg-surface mb-3 shadow-inner border border-outline/5">
+                <div className="absolute left-8 top-1/2 -translate-y-1/2 z-50 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all duration-200 pointer-events-none w-80 bg-surface rounded-2xl shadow-2xl border border-border p-3 transform group-hover:translate-x-2">
+                  <div className="w-full aspect-square rounded-xl overflow-hidden bg-bg mb-3 shadow-inner border border-border">
                     <img src={imageUrl} alt={label} className="w-full h-full object-cover mix-blend-multiply" />
                   </div>
-                  <p className="text-sm font-body font-normal text-on-surface-variant leading-relaxed text-center px-2 pb-1">{description}</p>
+                  <p className="text-sm font-body font-normal text-fg-mute leading-relaxed text-center px-2 pb-1">{description}</p>
                 </div>
               </div>
             )}
           </div>
           {!imageUrl && description && (
-            <span className="text-xs font-body font-normal text-on-surface-variant mt-1 max-w-[90%] leading-relaxed">
+            <span className="text-xs font-body font-normal text-fg-mute mt-1 max-w-[90%] leading-relaxed">
               {description}
             </span>
           )}
@@ -76,12 +76,12 @@ export function DifficultySlider({ label, value, min, max, step = 1, direction, 
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             autoFocus
-            className="text-right bg-surface-container-highest text-primary font-mono text-xs px-2 py-1 rounded w-20 outline-none border-b-2 border-primary mt-1"
+            className="text-right bg-surface text-flame font-mono text-xs px-2 py-1 rounded w-20 outline-none border-b-2 border-flame mt-1"
           />
         ) : (
           <span 
             onDoubleClick={() => setIsEditing(true)}
-            className="text-primary bg-primary/10 px-3 py-1 rounded-full font-mono text-xs cursor-pointer hover:bg-primary/20 transition-colors mt-1"
+            className="text-flame bg-flame/10 px-3 py-1 rounded-md font-mono text-xs cursor-pointer hover:bg-flame/20 transition-colors mt-1"
             title="Double-click to manually edit"
           >
             {value}
@@ -143,8 +143,8 @@ export function DifficultySlider({ label, value, min, max, step = 1, direction, 
           }
         `}</style>
         
-        <div className="absolute left-0 bottom-0 text-xs text-on-surface-variant/60 font-mono font-medium">{min}</div>
-        <div className="absolute right-0 bottom-0 text-xs text-on-surface-variant/60 font-mono font-medium">{max}</div>
+        <div className="absolute left-0 bottom-0 text-xs text-fg-mute font-mono font-medium">{min}</div>
+        <div className="absolute right-0 bottom-0 text-xs text-fg-mute font-mono font-medium">{max}</div>
       </div>
     </div>
   );

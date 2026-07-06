@@ -271,17 +271,19 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
         if (exerciseName) {
           const ex = exerciseName.toLowerCase();
           if (ex.includes('plie') || ex.includes('pile')) {
-            if (!['lkneeangle', 'rkneeangle', 'torsoangle'].includes(lowerName)) return null;
+            if (!['lkneeangle', 'rkneeangle', 'torsoangle', 'lhipangle', 'rhipangle'].includes(lowerName)) return null;
           } else if (ex.includes('split') || ex.includes('lunge')) {
-            if (!['lkneeangle', 'rkneeangle', 'torsoangle'].includes(lowerName)) return null;
+            if (!['lkneeangle', 'rkneeangle', 'torsoangle', 'lhipangle', 'rhipangle'].includes(lowerName)) return null;
           } else if (ex.includes('squat')) {
-            if (!['lkneeangle', 'rkneeangle', 'torsoangle'].includes(lowerName)) return null;
+            if (!['lkneeangle', 'rkneeangle', 'torsoangle', 'lhipangle', 'rhipangle'].includes(lowerName)) return null;
           } else if (ex.includes('calf')) {
             if (!['torsoangle', 'foottilt', 'tilt'].includes(lowerName)) return null;
+          } else if (ex.includes('curl') || ex.includes('press') || ex.includes('raise')) {
+            if (!['lelbowangle', 'relbowangle', 'lshoulderangle', 'rshoulderangle'].includes(lowerName)) return null;
           }
         } else {
           // Fallback if no exerciseName is passed
-          if (!['lkneeangle', 'rkneeangle', 'torsoangle', 'kneeangle'].includes(lowerName)) return null;
+          if (!['lkneeangle', 'rkneeangle', 'torsoangle', 'kneeangle', 'lelbowangle', 'relbowangle', 'lhipangle', 'rhipangle', 'lshoulderangle', 'rshoulderangle', 'lfootangle', 'rfootangle'].includes(lowerName)) return null;
         }
 
         const angleAnchors: Record<string, string[]> = {
@@ -292,7 +294,15 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
           'torsoangle': ['LEFT_SHOULDER', 'RIGHT_SHOULDER', 'LEFT_HIP', 'RIGHT_HIP'],
           'foottilt': ['LEFT_ANKLE', 'LEFT_FOOT_INDEX', 'RIGHT_ANKLE', 'RIGHT_FOOT_INDEX'],
           'valgusratio': ['LEFT_ANKLE', 'RIGHT_ANKLE'],
-          'stanceratio': ['LEFT_HEEL', 'RIGHT_HEEL']
+          'stanceratio': ['LEFT_HEEL', 'RIGHT_HEEL'],
+          'lelbowangle': ['LEFT_ELBOW'],
+          'relbowangle': ['RIGHT_ELBOW'],
+          'lhipangle': ['LEFT_HIP'],
+          'rhipangle': ['RIGHT_HIP'],
+          'lshoulderangle': ['LEFT_SHOULDER'],
+          'rshoulderangle': ['RIGHT_SHOULDER'],
+          'lfootangle': ['LEFT_FOOT_INDEX', 'LEFT_HEEL'],
+          'rfootangle': ['RIGHT_FOOT_INDEX', 'RIGHT_HEEL']
         };
 
         const offsets: Record<string, number> = {
@@ -303,7 +313,15 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
           'torsoangle': 0,
           'foottilt': -0.05,
           'valgusratio': 0.05,
-          'stanceratio': -0.05
+          'stanceratio': -0.05,
+          'lelbowangle': 0.05,
+          'relbowangle': 0.05,
+          'lhipangle': 0,
+          'rhipangle': 0,
+          'lshoulderangle': -0.05,
+          'rshoulderangle': -0.05,
+          'lfootangle': 0.05,
+          'rfootangle': 0.05
         };
 
         const anchors = angleAnchors[lowerName];
@@ -330,6 +348,14 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
         else if (lowerName === 'foottilt' || lowerName === 'tilt') text = `Tilt: ${Math.round(val)}°`;
         else if (lowerName === 'valgusratio') text = `Valgus: ${val.toFixed(2)}`;
         else if (lowerName === 'stanceratio') text = `Stance: ${val.toFixed(2)}`;
+        else if (lowerName === 'lelbowangle') text = `L Elbow: ${Math.round(val)}°`;
+        else if (lowerName === 'relbowangle') text = `R Elbow: ${Math.round(val)}°`;
+        else if (lowerName === 'lhipangle') text = `L Hip: ${Math.round(val)}°`;
+        else if (lowerName === 'rhipangle') text = `R Hip: ${Math.round(val)}°`;
+        else if (lowerName === 'lshoulderangle') text = `L Shoulder: ${Math.round(val)}°`;
+        else if (lowerName === 'rshoulderangle') text = `R Shoulder: ${Math.round(val)}°`;
+        else if (lowerName === 'lfootangle') text = `L Foot: ${Math.round(val)}°`;
+        else if (lowerName === 'rfootangle') text = `R Foot: ${Math.round(val)}°`;
         else text = `${name}: ${Math.round(val)}`;
 
         return (

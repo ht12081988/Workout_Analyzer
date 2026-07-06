@@ -38,69 +38,66 @@ export default function TrainerLoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-grow flex-col md:flex-row">
-      <section className="relative hidden items-center justify-center overflow-hidden bg-primary p-16 md:flex md:w-[60%]">
-        <div className="absolute inset-0 z-10 bg-gradient-to-br from-primary via-primary-container to-primary opacity-90" />
+    <main className="flex h-screen w-screen overflow-hidden flex-col md:flex-row">
+      <section className="relative hidden items-center justify-center overflow-hidden bg-black p-16 md:flex md:w-[60%]">
         <img
           alt="trainer coaching an athlete in a studio"
-          className="absolute inset-0 z-0 h-full w-full object-cover grayscale mix-blend-overlay"
+          className="absolute inset-0 z-0 h-full w-full object-cover grayscale mix-blend-overlay opacity-30"
           src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnEJcwUJkb1T0QELGiKo4B-byOEgKr4qujuGomLe1QgncpnuqFJ7UZy3KxMO6IjOYaJNY5LNCBFio4nHVvfwf1mP5iT3UF1j8PxEvetwOmTfIKvDSKd79jic4V4gjVNWpAPi488-KsGubBBxbtky_PpxC_85ndoh88SCQii-gS9gCCIL7iZhFHZwHdCAjzlZ541vGlpHBVIcrr03K67Z8WQa8AFkRnbyY-snfG0C9tFauVSv5AW9ocznB_fKBgjEjg5BI2u3zG28o"
         />
         <div className="relative z-20 max-w-2xl">
-          <div className="rounded-xl bg-surface-container-lowest/10 p-12 backdrop-blur-xl">
-            <div className="mb-6 inline-flex items-center gap-3 rounded-full bg-secondary-container/20 px-4 py-2">
-              <span className="material-symbols-outlined text-sm text-secondary-fixed">
-                insights
-              </span>
-              <span className="font-label text-xs uppercase text-secondary-fixed">
-                VisionFit Trainer Portal
-              </span>
+          <div className="relative overflow-hidden rounded-3xl border border-flame/30 bg-[#0a0a0a]/80 p-12 backdrop-blur-2xl shadow-[0_8px_40px_-12px_rgba(255,107,26,0.2)]">
+            <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-flame opacity-20 blur-[100px]" />
+            <div className="relative z-10">
+              <div className="eyebrow mb-6 !text-white/80">
+                <span className="bar bg-flame"></span>
+                <span>VISIONFIT · TRAINER PORTAL</span>
+              </div>
+              <h1 className="h1 !text-white mb-8">
+                Elevate your<br />
+                <em className="h-serif-italic text-flame font-normal">coaching.</em>
+              </h1>
+              <p className="lede mb-12 max-w-lg !text-white/70">
+                Manage your athletes, set custom pose rules, and review biomechanical session data to guide your clients to perfection.
+              </p>
+              <p className="kicker !text-white/50">
+                The ultimate tool for data-driven personal trainers.
+              </p>
             </div>
-            <h1 className="mb-8 font-headline text-5xl font-extrabold leading-tight text-on-primary lg:text-7xl">
-              Elevate your <br />
-              coaching.
-            </h1>
-            <p className="mb-12 max-w-lg font-body text-xl leading-relaxed text-primary-fixed-dim opacity-90">
-              Manage your athletes, set custom pose rules, and review biomechanical session data to guide your clients to perfection.
-            </p>
-            <p className="font-label text-sm text-primary-fixed-dim">
-              The ultimate tool for data-driven personal trainers.
-            </p>
           </div>
         </div>
       </section>
 
-      <section className="relative flex flex-grow flex-col items-center justify-center overflow-y-auto bg-surface p-8 md:w-[40%] md:p-16 lg:p-24">
+      <section className="relative flex flex-grow flex-col items-center justify-center overflow-y-auto bg-bg p-8 md:w-[40%] md:p-16 lg:p-24">
         <div className="mb-12 text-center md:hidden">
-          <span className="font-headline text-2xl font-black text-primary">
+          <span className="h2 text-fg italic">
             VisionFiT Trainer
           </span>
         </div>
         <div className="w-full max-w-md">
           <div className="mb-12">
-            <h2 className="mb-2 font-headline text-3xl font-bold text-on-surface">
-              Welcome Back, Coach.
+            <span className="kicker">— LOG IN TO DASHBOARD</span>
+            <h2 className="mt-4 h2 text-fg">
+              Welcome back.<br />
+              <em className="h-serif-italic text-flame font-normal">Coach.</em>
             </h2>
-            <p className="font-body text-on-surface-variant">
-              Access your dashboard to review athlete progress.
-            </p>
           </div>
           <form className="space-y-8" onSubmit={handleLogin}>
             {error && (
-              <div className="rounded-xl bg-error-container p-4 font-body text-sm text-on-error-container">
+              <div className="rounded-xl bg-[#FFE4E4] p-4 text-sm text-[#D32F2F] border border-[#FFCDCD] dark:bg-[#4A1010] dark:text-[#FFB4B4] dark:border-[#5C1818]">
                 {error}
               </div>
             )}
             <div className="space-y-2">
               <label
-                className="ml-1 font-label text-xs font-bold uppercase text-on-surface-variant"
+                className="ml-1 kicker text-fg-mute"
                 htmlFor="email"
               >
                 Email Address
               </label>
               <div className="relative">
                 <input
-                  className="h-16 w-full rounded-xl border-none bg-surface-container-highest px-6 font-body text-on-surface outline-none transition-all duration-300 placeholder:text-outline-variant focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary"
+                  className="h-16 w-full rounded-2xl border border-border bg-surface-card px-6 text-fg outline-none transition-all duration-300 placeholder:text-fg-mute focus:bg-surface-elev focus:border-flame"
                   id="email"
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="coach@performance.ai"
@@ -108,21 +105,21 @@ export default function TrainerLoginPage() {
                   type="email"
                   value={email}
                 />
-                <span className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-outline-variant">
+                <span className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-fg-mute">
                   mail
                 </span>
               </div>
             </div>
             <div className="space-y-2">
               <label
-                className="ml-1 font-label text-xs font-bold uppercase text-on-surface-variant"
+                className="ml-1 kicker text-fg-mute"
                 htmlFor="password"
               >
                 Password
               </label>
               <div className="relative">
                 <input
-                  className="h-16 w-full rounded-xl border-none bg-surface-container-highest pl-6 pr-24 font-body text-on-surface outline-none transition-all duration-300 placeholder:text-outline-variant focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary"
+                  className="h-16 w-full rounded-2xl border border-border bg-surface-card pl-6 pr-24 text-fg outline-none transition-all duration-300 placeholder:text-fg-mute focus:bg-surface-elev focus:border-flame"
                   id="password"
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Password"
@@ -130,13 +127,13 @@ export default function TrainerLoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                 />
-                <span className="material-symbols-outlined absolute right-14 top-1/2 -translate-y-1/2 text-outline-variant pointer-events-none">
+                <span className="material-symbols-outlined absolute right-14 top-1/2 -translate-y-1/2 text-fg-mute pointer-events-none">
                   lock
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-outline-variant hover:text-primary transition-colors focus:outline-none"
+                  className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-fg-mute hover:text-flame transition-colors focus:outline-none"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? 'visibility_off' : 'visibility'}
@@ -145,7 +142,7 @@ export default function TrainerLoginPage() {
             </div>
             <div className="pt-4">
               <button
-                className="ambient-shadow group flex h-16 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-primary to-primary-container font-headline text-lg font-bold text-on-primary transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                className="group flex h-16 w-full items-center justify-center gap-2 rounded-full bg-flame text-lg font-bold text-white transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={loading}
                 type="submit"
               >

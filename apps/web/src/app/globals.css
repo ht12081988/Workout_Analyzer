@@ -1,60 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
-  /* Stitch Colors */
-  --color-primary: #001d3f;
-  --color-primary-container: #003265;
+  --color-primary: var(--flame);
   --color-on-primary: #ffffff;
-  --color-on-primary-container: #799cd5;
-  --color-secondary: #24695a;
-  --color-secondary-container: #a9edda;
-  --color-on-secondary: #ffffff;
-  --color-on-secondary-container: #296d5e;
-  --color-tertiary: #371200;
-  --color-tertiary-container: #52260e;
-  --color-on-tertiary: #ffffff;
-  --color-on-tertiary-container: #cc8b6c;
-  --color-surface: #f8f9ff;
-  --color-on-surface: #191c20;
-  --color-surface-variant: #e1e2e8;
-  --color-on-surface-variant: #43474f;
-  --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f2f3f9;
-  --color-surface-container: #eceef3;
-  --color-surface-container-high: #e6e8ed;
-  --color-surface-container-highest: #e1e2e8;
-  --color-outline: #737780;
-  --color-outline-variant: #c3c6d1;
-  --color-error: #ba1a1a;
-  --color-error-container: #ffdad6;
-  --color-on-error: #ffffff;
-  --color-on-error-container: #93000a;
-  --color-inverse-surface: #2e3135;
-  --color-inverse-on-surface: #eff0f6;
-  --color-inverse-primary: #a8c8ff;
-  --color-primary-fixed: #d5e3ff;
-  --color-primary-fixed-dim: #a8c8ff;
-  --color-on-primary-fixed: #001b3c;
-  --color-on-primary-fixed-variant: #20477b;
-  --color-secondary-fixed: #acf0dd;
-  --color-secondary-fixed-dim: #90d4c1;
-  --color-on-secondary-fixed: #00201a;
-  --color-on-secondary-fixed-variant: #005143;
-  --color-tertiary-fixed: #ffdbcb;
-  --color-tertiary-fixed-dim: #fdb694;
-  --color-on-tertiary-fixed: #341100;
-  --color-on-tertiary-fixed-variant: #6b3a20;
-
-  /* Fonts */
-  --font-headline: var(--font-headline);
+  --color-flame: var(--flame);
+  --color-flame-2: var(--flame-2);
+  --color-on-dark: var(--fg-on-dark);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-card: var(--surface-card);
+  --color-surface-elev: var(--surface-elev);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-hover: var(--border-hover);
+  --color-fg: var(--fg);
+  --color-fg-strong: var(--fg-strong);
+  --color-fg-mute: var(--fg-mute);
+  --color-fg-dim: var(--fg-dim);
+  --color-fg-faint: var(--fg-faint);
+  --color-err: var(--err);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --font-display: var(--font-display);
   --font-body: var(--font-body);
-  --font-label: var(--font-body);
-
-  /* Custom Radii */
-  --radius-DEFAULT: 1rem;
-  --radius-lg: 2rem;
-  --radius-xl: 3rem;
+  --font-mono: var(--font-mono);
 }
 
 .material-symbols-outlined {
@@ -73,18 +42,448 @@
   -webkit-font-smoothing: antialiased;
 }
 
-@utility ambient-shadow {
-  box-shadow: 0 10px 32px -4px rgba(25, 28, 32, 0.06);
-}
-
 @utility no-scrollbar {
   &::-webkit-scrollbar {
     display: none;
   }
 }
 
-body {
-  background: var(--color-surface);
-  color: var(--color-on-surface);
-  font-family: var(--font-body);
+@utility thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+  &::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: 9999px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-fg-mute);
+  }
 }
+/* ============================================================
+   IndiaNIC Design System — Colors & Type
+   --------------------------------------------------------
+   Dark-first editorial. Flame-orange brand accent, ivory
+   light surface, ink-black dark surface. Five typefaces:
+   Inter Tight (display), Inter (body), Fraunces (serif italic),
+   Instrument Serif (alt serif), JetBrains Mono (mono).
+   ============================================================ */
+
+/* Inter, Inter Tight, Instrument Serif, JetBrains Mono come from Google Fonts:
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Inter+Tight:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400;500&display=swap">
+
+   Fraunces is served LOCALLY from the brand font files in this folder. */
+
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/Fraunces_SOFT_WONK_opsz_wght_.ttf') format('truetype-variations'),
+       url('fonts/Fraunces_SOFT_WONK_opsz_wght_.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Fraunces';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/Fraunces-Italic_SOFT_WONK_opsz_wght_.ttf') format('truetype-variations'),
+       url('fonts/Fraunces-Italic_SOFT_WONK_opsz_wght_.ttf') format('truetype');
+}
+
+:root {
+  /* ── BRAND ────────────────────────────────────────────── */
+  /* Flame is THE signature — used for accents, CTAs, hover
+     underlines, focus rings. Never use it for body copy. */
+  --flame:        #FF6B1A;
+  --flame-2:      #F7941D;   /* warmer amber, gradient companion */
+  --flame-glow:   rgba(255, 107, 26, 0.18);
+  --flame-shadow: rgba(255, 107, 26, 0.55);
+
+  /* AI duo — used sparingly for AI-themed gradient text */
+  --ai-violet:    #7C3AED;
+  --ai-cyan:      #06B6D4;
+
+  /* ── SURFACES ─────────────────────────────────────────── */
+  --ink-950:      #0A0A0A;   /* primary dark bg */
+  --ink-900:      #111111;   /* card surfaces on dark */
+  --ink-800:      #1A1A1A;
+  --ink-700:      #242424;
+  --ink-card:     #0d0d0d;   /* service-card spec */
+  --ink-footer:   #070707;
+
+  --ivory:        #FAF7F2;   /* primary light bg */
+  --ivory-2:      #f6f4ef;   /* card surface on ivory */
+  --ivory-3:      #f0ece4;   /* footer / sunken in light */
+  --ivory-4:      #ece4d5;   /* deeper warm tone */
+
+  /* ── INK (foreground on dark / light surfaces) ───────── */
+  --fg-on-dark:           #ffffff;
+  --fg-on-dark-strong:    rgba(255, 255, 255, 0.92);
+  --fg-on-dark-mute:      rgba(255, 255, 255, 0.65);
+  --fg-on-dark-dim:       rgba(255, 255, 255, 0.5);
+  --fg-on-dark-faint:     rgba(255, 255, 255, 0.3);
+
+  --fg-on-light:          #0A0A0A;
+  --fg-on-light-strong:   rgba(10, 10, 10, 0.92);
+  --fg-on-light-mute:     rgba(10, 10, 10, 0.65);
+  --fg-on-light-dim:      rgba(10, 10, 10, 0.5);
+  --fg-on-light-faint:    rgba(10, 10, 10, 0.3);
+
+  /* ── BORDERS ──────────────────────────────────────────── */
+  --border-on-dark:       rgba(255, 255, 255, 0.08);
+  --border-on-dark-hover: rgba(255, 255, 255, 0.15);
+  --border-on-light:      rgba(10, 10, 10, 0.08);
+  --border-on-light-hover: rgba(10, 10, 10, 0.15);
+
+  /* ── SEMANTIC (status) ───────────────────────────────── */
+  --ok:    #22c55e;
+  --warn:  #fbbf24;
+  --err:   #ef4444;
+
+  /* ── TYPEFACES ───────────────────────────────────────── */
+  --font-display: 'Inter Tight', system-ui, -apple-system, sans-serif;
+  --font-body:    'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif:   'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-serif-2: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* ── TYPE SCALE ─────────────────────────────────────────
+     The site uses fluid `clamp()` extensively for hero
+     headlines. Sizes below are the resolved desktop targets. */
+  --t-hero:       clamp(3rem, 8vw, 9rem);     /* 48–144px */
+  --t-h1:         clamp(2.5rem, 5.5vw, 5rem); /* 40–80px */
+  --t-h2:         clamp(2rem, 3.5vw, 3rem);   /* 32–48px */
+  --t-h3:         1.5rem;                     /* 24px */
+  --t-lede:       1.125rem;                   /* 18px – section descriptions */
+  --t-body:       1rem;                       /* 16px */
+  --t-small:      0.875rem;                   /* 14px */
+  --t-mono-tag:   0.6875rem;                  /* 11px – ALL CAPS labels */
+  --t-mono-micro: 0.625rem;                   /* 10px – chip tags */
+
+  /* ── SPACING (8-pt base with editorial scale) ────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  --space-32: 128px;
+
+  /* Section vertical rhythm — `py-16 sm:py-32` in source */
+  --section-y:        128px;        /* desktop */
+  --section-y-mobile: 64px;
+  --container-max:    1600px;
+  --container-px-sm:  20px;
+  --container-px-md:  32px;
+  --container-px-lg:  64px;
+
+  /* ── RADII ───────────────────────────────────────────── */
+  --r-sm:    4px;
+  --r-md:    8px;
+  --r-card:  14px;   /* tz-card, small panels */
+  --r-lg:    16px;   /* feature cards */
+  --r-xl:    18px;   /* ai-card */
+  --r-2xl:   20px;   /* work-card */
+  --r-3xl:   24px;   /* mega panel chrome */
+  --r-pill:  9999px;
+
+  /* ── SHADOWS ─────────────────────────────────────────── */
+  /* Flame glow — buttons, brand emphasis */
+  --shadow-flame:    0 14px 40px -10px rgba(255, 107, 26, 0.6);
+  /* Mega panel — deep editorial drop */
+  --shadow-mega:     0 30px 80px -20px rgba(0, 0, 0, 0.85),
+                     inset 0 2px 0 0 rgba(255, 255, 255, 0.03);
+  /* Card lift on dark */
+  --shadow-card:     0 24px 60px -22px rgba(0, 0, 0, 0.5);
+  /* Card lift on light */
+  --shadow-card-lt:  0 30px 60px -20px rgba(0, 0, 0, 0.18);
+  /* Floating action / pill nav */
+  --shadow-pill:     0 10px 40px -10px rgba(0, 0, 0, 0.55);
+
+  /* ── MOTION ──────────────────────────────────────────── */
+  --ease-out:      cubic-bezier(.2, .8, .2, 1);          /* the house curve */
+  --ease-emphasis: cubic-bezier(0.16, 1, 0.3, 1);        /* slower entrance */
+  --dur-fast:      200ms;
+  --dur-base:      300ms;
+  --dur-med:       450ms;
+  --dur-slow:      600ms;
+
+  /* ── EFFECTS ─────────────────────────────────────────── */
+  --noise-opacity: 0.06;
+  --backdrop-blur: blur(20px) saturate(140%);
+  --mesh-line:     rgba(255, 255, 255, 0.045);  /* hero grid lines on dark */
+  --mesh-line-lt:  rgba(0, 0, 0, 0.04);          /* hero grid lines on light */
+}
+
+/* ============================================================
+   THEME LAYER — semantic tokens that flip per mode
+   --------------------------------------------------------
+   The site is DARK-FIRST. `:root` defaults to dark; opt into
+   light with `<html data-theme="light">` (or any ancestor).
+   `prefers-color-scheme` is honoured when `data-theme` is
+   absent, so an unattributed page follows the OS.
+
+   USAGE — always consume the semantic tokens (--bg, --fg,
+   --surface, --border, --mesh, --shadow-card-active) in
+   components. Reach for the raw --ink-* / --ivory-* /
+   --fg-on-dark-* / --fg-on-light-* tokens only when you need
+   to pin one mode regardless of theme.
+
+   The flame & AI-duo accents do NOT change between modes —
+   the brand is the same colour on either surface.
+   ============================================================ */
+
+:root,
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  --bg:              var(--ink-950);
+  --bg-deep:         var(--ink-footer);
+  --surface:         var(--ink-900);
+  --surface-card:    var(--ink-card);   /* canonical card fill */
+  --surface-raised:  var(--ink-800);
+  --surface-elev:    var(--ink-700);
+
+  --fg:              var(--fg-on-dark);
+  --fg-strong:       var(--fg-on-dark-strong);
+  --fg-mute:         var(--fg-on-dark-mute);
+  --fg-dim:          var(--fg-on-dark-dim);
+  --fg-faint:        var(--fg-on-dark-faint);
+
+  --border:          var(--border-on-dark);
+  --border-hover:    var(--border-on-dark-hover);
+
+  --mesh:            var(--mesh-line);
+  --shadow-card-active: var(--shadow-card);
+
+  /* Surface-aware overlays */
+  --noise-blend:     overlay;            /* SVG noise sits on dark via overlay */
+  --scrim-card:      linear-gradient(180deg, #141414, #0c0c0c);
+  --scrim-mega:      linear-gradient(180deg, #0b0908 0%, #060504 100%);
+  --nav-blur-bg:     rgba(14, 14, 14, 0.20);
+  --nav-scroll-bg:   rgba(10, 10, 10, 0.75);
+
+  /* Brand-mark variants — use the dark-surface SVG */
+  --logo-src:        none;
+  --symbol-src:      none;
+
+  /* Marquee logo filter (clients-track) */
+  --logo-filter:     brightness(0) invert(1) opacity(0.65);
+  --logo-filter-hover: brightness(0) invert(1) opacity(1);
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"],
+[data-theme="light"] {
+  --bg:              var(--ivory);
+  --bg-deep:         var(--ivory-3);
+  --surface:         var(--ivory-2);
+  --surface-card:    var(--ivory-2);
+  --surface-raised:  var(--ivory-3);
+  --surface-elev:    var(--ivory-4);
+
+  --fg:              var(--fg-on-light);
+  --fg-strong:       var(--fg-on-light-strong);
+  --fg-mute:         var(--fg-on-light-mute);
+  --fg-dim:          var(--fg-on-light-dim);
+  --fg-faint:        var(--fg-on-light-faint);
+
+  --border:          var(--border-on-light);
+  --border-hover:    var(--border-on-light-hover);
+
+  --mesh:            var(--mesh-line-lt);
+  --shadow-card-active: var(--shadow-card-lt);
+
+  /* Surface-aware overlays */
+  --noise-blend:     multiply;           /* noise must darken on ivory */
+  --scrim-card:      linear-gradient(180deg, #faf7f2, #f3efe7);
+  --scrim-mega:      linear-gradient(180deg, #faf7f2 0%, #ece4d5 100%);
+  --nav-blur-bg:     rgba(250, 247, 242, 0.55);
+  --nav-scroll-bg:   rgba(250, 247, 242, 0.85);
+
+  /* Brand-mark variants — use the light-surface SVG */
+  --logo-src:        none;
+  --symbol-src:      none;
+
+  /* Marquee logo filter — invert is dropped on ivory */
+  --logo-filter:     brightness(0) opacity(0.6);
+  --logo-filter-hover: brightness(0) opacity(0.95);
+
+  color-scheme: light;
+}
+
+/* OS-driven fallback when no explicit data-theme is set.
+   Marketing site treats this as a SECONDARY signal — the
+   in-product toggle (writing data-theme) always wins. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bg:              var(--ivory);
+    --bg-deep:         var(--ivory-3);
+    --surface:         var(--ivory-2);
+    --surface-card:    var(--ivory-2);
+    --surface-raised:  var(--ivory-3);
+    --surface-elev:    var(--ivory-4);
+
+    --fg:              var(--fg-on-light);
+    --fg-strong:       var(--fg-on-light-strong);
+    --fg-mute:         var(--fg-on-light-mute);
+    --fg-dim:          var(--fg-on-light-dim);
+    --fg-faint:        var(--fg-on-light-faint);
+
+    --border:          var(--border-on-light);
+    --border-hover:    var(--border-on-light-hover);
+
+    --mesh:            var(--mesh-line-lt);
+    --shadow-card-active: var(--shadow-card-lt);
+    --noise-blend:     multiply;
+    --scrim-card:      linear-gradient(180deg, #faf7f2, #f3efe7);
+    --scrim-mega:      linear-gradient(180deg, #faf7f2 0%, #ece4d5 100%);
+    --nav-blur-bg:     rgba(250, 247, 242, 0.55);
+    --nav-scroll-bg:   rgba(250, 247, 242, 0.85);
+    --logo-src:        none;
+    --symbol-src:      none;
+    --logo-filter:     brightness(0) opacity(0.6);
+    --logo-filter-hover: brightness(0) opacity(0.95);
+    color-scheme: light;
+  }
+}
+
+/* Smooth-flip the theme — keeps colour, fill, and stroke
+   in sync when the user toggles, without animating ANY
+   transform/layout property (that would jank the nav). */
+html, body,
+[data-theme] *,
+.themed,
+.themed * {
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    color            var(--dur-base) var(--ease-out),
+    border-color     var(--dur-base) var(--ease-out),
+    fill             var(--dur-base) var(--ease-out),
+    stroke           var(--dur-base) var(--ease-out);
+}
+
+/* ============================================================
+   SEMANTIC CLASSES — drop-in helpers
+   ============================================================ */
+
+/* ── Headings — always pair display sans w/ negative tracking ── */
+.h-hero {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--t-hero);
+  line-height: 0.88;
+  letter-spacing: -0.035em;
+}
+
+.h1, .h2, .h3 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.h1 { font-size: var(--t-h1); line-height: 0.92; }
+.h2 { font-size: var(--t-h2); line-height: 1.0; }
+.h3 { font-size: var(--t-h3); line-height: 1.15; font-weight: 600; }
+
+/* Serif italic — the editorial counterpoint used in headlines
+   like "AI in the wild — Real Outcomes." */
+.h-serif-italic {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-variation-settings: "opsz" 144, "SOFT" 0, "WONK" 0;
+}
+
+/* ── Body ── */
+body, .p {
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lede {
+  font-family: var(--font-body);
+  font-size: var(--t-lede);
+  line-height: 1.6;
+  color: var(--fg-mute);
+}
+
+/* ── The mono "kicker" — section labels in ALL CAPS with mono ── */
+.kicker {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: var(--t-mono-tag);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+
+.kicker-flame {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: var(--t-mono-micro);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--flame);
+}
+
+/* ── Tech chip — small bordered mono tag ── */
+.tech-chip {
+  font-family: var(--font-mono);
+  font-size: var(--t-mono-micro);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--fg-mute);
+}
+
+/* ── Code ── */
+code, .code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  font-weight: 500;
+}
+
+/* ── Brand gradient text helpers ── */
+.shimmer-flame {
+  background: linear-gradient(90deg,
+    var(--flame) 0%,
+    var(--flame-2) 30%,
+    #FFD7A8 50%,
+    var(--flame-2) 70%,
+    var(--flame) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: si-shimmer 4s linear infinite;
+}
+
+.ai-gradient {
+  background: linear-gradient(90deg, var(--ai-violet), var(--ai-cyan));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes si-shimmer {
+  to { background-position: -200% 0; }
+}
+

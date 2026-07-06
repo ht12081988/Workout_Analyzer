@@ -1,15 +1,27 @@
 import type { Metadata } from "next";
-import { Manrope, Inter } from "next/font/google";
+import { Inter, Inter_Tight, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
-const manrope = Manrope({
-  variable: "--font-headline",
+const inter = Inter({
+  variable: "--font-body",
   subsets: ["latin"],
 });
 
-const inter = Inter({
-  variable: "--font-body",
+const interTight = Inter_Tight({
+  variable: "--font-display",
+  subsets: ["latin"],
+});
+
+const instrumentSerif = Instrument_Serif({
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-serif-2",
+  subsets: ["latin"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
 });
 
@@ -26,12 +38,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${manrope.variable} ${inter.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${interTight.variable} ${inter.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <head>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
       </head>
-      <body className="min-h-full flex flex-col bg-surface text-on-surface">
+      <body className="min-h-full flex flex-col bg-bg text-fg">
         {children}
         <Toaster 
           position="top-center" 

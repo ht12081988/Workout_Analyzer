@@ -155,6 +155,14 @@ export function SessionDetailScreen({ route, navigation }: any) {
       case 'torsoRatio': return 'Torso Ratio';
       case 'rFootAngle': return 'Right Foot Angle';
       case 'lFootAngle': return 'Left Foot Angle';
+      case 'lelbowangle': return 'Left Elbow Angle';
+      case 'relbowangle': return 'Right Elbow Angle';
+      case 'lhipangle': return 'Left Hip Angle';
+      case 'rhipangle': return 'Right Hip Angle';
+      case 'lshoulderangle': return 'Left Shoulder Angle';
+      case 'rshoulderangle': return 'Right Shoulder Angle';
+      case 'lkneeangle': return 'Left Knee Angle';
+      case 'rkneeangle': return 'Right Knee Angle';
       case 'symmetry': return 'Bilateral Symmetry';
       case 'stanceRatio': return 'Stance Width Ratio';
       default: return name.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
@@ -208,10 +216,18 @@ export function SessionDetailScreen({ route, navigation }: any) {
 
         if (isLStart && jointNames.indexOf('r' + name.substring(1)) !== -1) {
           partnerName = 'r' + name.substring(1);
-          baseDisplayName = name.substring(1).replace(/([A-Z])/g, ' $1').trim();
+          const rawName = name.substring(1);
+          if (rawName === 'elbowangle') baseDisplayName = 'Elbow Angle';
+          else if (rawName === 'hipangle') baseDisplayName = 'Hip Angle';
+          else if (rawName === 'shoulderangle') baseDisplayName = 'Shoulder Angle';
+          else if (rawName === 'kneeangle') baseDisplayName = 'Knee Angle';
+          else if (rawName === 'footangle') baseDisplayName = 'Foot Angle';
+          else baseDisplayName = rawName.replace(/([A-Z])/g, ' $1').trim();
+          baseDisplayName = baseDisplayName.charAt(0).toUpperCase() + baseDisplayName.slice(1);
         } else if (isLeftStart && jointNames.indexOf(name.replace('left', 'right')) !== -1) {
           partnerName = name.replace('left', 'right');
           baseDisplayName = name.replace('left', '').replace(/([A-Z])/g, ' $1').trim();
+          baseDisplayName = baseDisplayName.charAt(0).toUpperCase() + baseDisplayName.slice(1);
         }
 
         if (partnerName) {

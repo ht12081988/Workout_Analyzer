@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 type User = {
   id: string;
@@ -166,20 +167,20 @@ function PracticeDashboard({
   }, []);
 
   return (
-    <main className="min-h-screen bg-surface pb-28 text-on-surface">
-      <nav className="fixed left-0 top-0 z-50 grid h-16 w-full grid-cols-2 items-center bg-surface-container-lowest/30 px-4 shadow-sm backdrop-blur-xl md:grid-cols-3 md:px-8 border-b border-outline-variant/5">
+    <main className="min-h-screen bg-bg pb-28 text-fg">
+      <nav className="fixed left-0 top-0 z-50 grid h-16 w-full grid-cols-2 items-center bg-surface-card/60 px-4 shadow-sm backdrop-blur-xl md:grid-cols-3 md:px-8 border-b border-border">
         <div className="flex items-center">
-          <span className="font-headline text-xl font-black italic text-primary">
+          <span className="h3 italic text-fg">
             VisionFiT
           </span>
         </div>
 
-        <div className="hidden items-center justify-center gap-8 font-headline text-sm font-bold md:flex">
-          <a className="text-primary" href="#">
+        <div className="hidden items-center justify-center gap-8 font-bold md:flex text-sm">
+          <a className="text-flame border-b-2 border-flame pb-1" href="#">
             Practice
           </a>
           <a
-            className="text-on-surface-variant transition-colors hover:text-secondary"
+            className="text-fg-mute transition-colors hover:text-fg"
             href="/history"
           >
             History
@@ -187,13 +188,14 @@ function PracticeDashboard({
         </div>
 
         <div className="flex items-center justify-end gap-4">
+          <ThemeToggle />
           <div className="hidden flex-col items-end lg:flex">
-            <span className="font-body text-xs text-on-surface-variant">
+            <span className="text-xs text-fg-mute">
               {displayEmail}
             </span>
           </div>
           <button
-            className="flex items-center gap-2 rounded-full bg-primary/5 px-4 py-2 text-sm font-semibold text-primary transition-all hover:bg-primary/10 active:scale-95"
+            className="flex items-center gap-2 rounded-full bg-surface-elev px-4 py-2 text-sm font-semibold text-fg transition-all hover:bg-surface-elev-hover active:scale-95 border border-border"
             onClick={onSignOut}
             type="button"
           >
@@ -206,7 +208,7 @@ function PracticeDashboard({
       <section className="mx-auto max-w-7xl px-4 pb-16 pt-24 md:px-16">
         <header className="mb-12 flex flex-col gap-6">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <h1 className="font-headline text-4xl font-extrabold leading-tight text-primary md:text-6xl">
+            <h1 className="font-display font-normal tracking-tight text-xl md:text-2xl text-fg">
               Refine Your Form.
             </h1>
             
@@ -219,7 +221,7 @@ function PracticeDashboard({
                       setSelectedTrainerId(e.target.value);
                       window.localStorage.setItem('visionfit.athlete.trainer_id', e.target.value);
                     }}
-                    className="bg-surface-container-low border border-outline/10 rounded-full px-4 py-1.5 text-sm font-bold text-on-surface-variant focus:outline-none focus:ring-1 focus:ring-primary shadow-inner"
+                    className="bg-surface-elev border border-border rounded-full px-4 py-1.5 text-sm font-bold text-fg focus:outline-none focus:ring-1 focus:ring-flame"
                   >
                     {trainers.map(t => (
                       <option key={t.id} value={t.id}>{t.name || t.email}</option>
@@ -228,13 +230,13 @@ function PracticeDashboard({
                 )}
 
                 {/* Mode Switcher */}
-                <div className="flex items-center bg-surface-container-low rounded-full p-1 border border-outline/10 shadow-inner">
+                <div className="flex items-center bg-surface-card rounded-full p-1 border border-border shadow-inner">
                   <button
                     onClick={() => {
                       setAthleteMode('trainer');
                       window.localStorage.setItem('visionfit.athlete.mode', 'trainer');
                     }}
-                    className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${athleteMode === 'trainer' ? 'bg-secondary text-on-secondary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+                    className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${athleteMode === 'trainer' ? 'bg-flame text-white shadow-sm' : 'text-fg-mute hover:text-fg'}`}
                   >
                     Trainer
                   </button>
@@ -243,7 +245,7 @@ function PracticeDashboard({
                       setAthleteMode('self');
                       window.localStorage.setItem('visionfit.athlete.mode', 'self');
                     }}
-                    className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${athleteMode === 'self' ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
+                    className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${athleteMode === 'self' ? 'bg-flame text-white shadow-sm' : 'text-fg-mute hover:text-fg'}`}
                   >
                     Self
                   </button>
@@ -251,11 +253,11 @@ function PracticeDashboard({
               </div>
               
               {activeExercise && (
-                <div className="rounded-[2rem] bg-secondary-container px-5 py-4 text-on-secondary-container shadow-sm w-full max-w-[200px] text-right">
-                  <p className="font-body text-xs font-bold uppercase">
+                <div className="rounded-[2rem] bg-surface-elev border border-border px-5 py-4 shadow-sm w-full max-w-[200px] text-right">
+                  <p className="kicker uppercase">
                     Selected Movement
                   </p>
-                  <p className="mt-1 font-headline text-xl font-bold">
+                  <p className="mt-1 h3 font-bold text-flame">
                     {activeExercise}
                   </p>
                 </div>
@@ -264,7 +266,7 @@ function PracticeDashboard({
           </div>
           
           <div>
-            <p className="font-body text-base text-on-surface-variant">
+            <p className="text-base text-fg-mute">
               Select an exercise to begin AI-guided posture tracking. Improve control, reduce injury risk, and evaluate every rep.
             </p>
           </div>
@@ -272,15 +274,15 @@ function PracticeDashboard({
 
         {trainerError && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="w-full max-w-[420px] rounded-[2rem] bg-surface p-8 shadow-2xl mx-4 transform transition-all">
-              <h2 className="mb-3 font-headline text-2xl font-bold text-on-surface">Trainer Access</h2>
-              <p className="mb-8 font-body text-base text-on-surface-variant leading-relaxed">
+            <div className="w-full max-w-[420px] rounded-[2rem] bg-surface-card border border-border p-8 shadow-2xl mx-4 transform transition-all">
+              <h2 className="mb-3 h2">Trainer Access</h2>
+              <p className="mb-8 text-base text-fg-mute leading-relaxed">
                 {trainerError} Please contact your facility to get linked.
               </p>
               
               <button
                 onClick={() => setTrainerError('')}
-                className="w-full rounded-full bg-primary px-6 py-3.5 font-headline text-sm font-bold text-on-primary transition-colors hover:bg-primary/90"
+                className="w-full rounded-full bg-flame px-6 py-3.5 font-bold text-white transition-colors hover:bg-[#E56017]"
               >
                 OK
               </button>
@@ -289,21 +291,21 @@ function PracticeDashboard({
         )}
 
         {exercisesLoading && (
-          <div className="rounded-[2rem] bg-surface-container-low p-8 font-body text-on-surface-variant">
+          <div className="rounded-2xl bg-surface-card p-8 text-fg-mute border border-border">
             Loading exercises...
           </div>
         )}
 
         {!exercisesLoading && exercisesError && (
-          <div className="rounded-[2rem] bg-error-container p-8 text-on-error-container">
-            <h2 className="font-headline text-2xl font-bold">
+          <div className="rounded-2xl bg-[#FFE4E4] p-8 text-[#D32F2F] border border-[#FFCDCD] dark:bg-[#4A1010] dark:text-[#FFB4B4] dark:border-[#5C1818]">
+            <h2 className="h2 font-bold">
               Exercises unavailable
             </h2>
-            <p className="mt-3 font-body text-sm leading-6">
+            <p className="mt-3 text-sm leading-6">
               {exercisesError}
             </p>
             <button
-              className="mt-6 rounded-full bg-primary px-6 py-3 font-headline font-bold text-on-primary transition-all hover:scale-[1.02] active:scale-95"
+              className="mt-6 rounded-full bg-flame px-6 py-3 font-bold text-white transition-all hover:scale-[1.02] active:scale-95"
               onClick={() => void loadExercises()}
               type="button"
             >
@@ -313,7 +315,7 @@ function PracticeDashboard({
         )}
 
         {!exercisesLoading && !exercisesError && exercises.length === 0 && (
-          <div className="rounded-[2rem] bg-surface-container-low p-8 font-body text-on-surface-variant">
+          <div className="rounded-2xl bg-surface-card border border-border p-8 text-fg-mute">
             No active exercises are available yet.
           </div>
         )}
@@ -325,7 +327,7 @@ function PracticeDashboard({
           >
             {exercises.map((exercise) => (
               <article
-                className="group flex min-h-[520px] flex-col overflow-hidden rounded-[2.5rem] bg-surface-container-low transition-all hover:-translate-y-1 hover:shadow-2xl"
+                className="group flex min-h-[520px] flex-col overflow-hidden rounded-3xl bg-surface-card border border-border transition-all hover:-translate-y-1 hover:shadow-lg"
                 key={exercise.id}
               >
                 <div className={`relative h-64 overflow-hidden bg-gradient-to-br ${getExerciseGradient(exercise.name)}`}>
@@ -339,7 +341,7 @@ function PracticeDashboard({
                     src={getExerciseImage(exercise.name, exercise.image_path)}
                   />
 
-                  <div className="absolute left-6 top-6 flex h-14 w-14 items-center justify-center rounded-full bg-white text-primary shadow-lg">
+                  <div className="absolute left-6 top-6 flex h-14 w-14 items-center justify-center rounded-full bg-white text-[#111827] shadow-lg">
                     <span className="material-symbols-outlined text-3xl">
                       {getExerciseIcon(exercise.name)}
                     </span>
@@ -356,7 +358,7 @@ function PracticeDashboard({
                         e.stopPropagation();
                         router.push(`/configure/${exercise.id}`);
                       }}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70 backdrop-blur-md text-primary shadow-lg hover:bg-white transition-colors"
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70 backdrop-blur-md text-[#111827] shadow-lg hover:bg-white transition-colors"
                       title="Configure exercise"
                       type="button"
                     >
@@ -365,7 +367,7 @@ function PracticeDashboard({
                   </div>
 
                   {exercise.camera_angle && (
-                    <div className="absolute right-0 bottom-0 flex items-center gap-1.5 rounded-tl-2xl bg-black/70 backdrop-blur-md px-3 py-1 font-label text-[9px] font-black uppercase tracking-widest text-white/90 shadow-md">
+                    <div className="absolute right-0 bottom-0 flex items-center gap-1.5 rounded-tl-2xl bg-black/70 backdrop-blur-md px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white/90 shadow-md">
                       <span className="material-symbols-outlined text-[12px] font-bold">photo_camera</span>
                       <span>{exercise.camera_angle}</span>
                     </div>
@@ -375,17 +377,17 @@ function PracticeDashboard({
                 <div className="flex flex-1 flex-col justify-between p-8">
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="font-headline text-3xl font-bold text-on-surface">
+                      <h2 className="h3 font-bold text-fg">
                         {exercise.name}
                       </h2>
                     </div>
-                    <p className="font-body text-sm leading-relaxed text-on-surface-variant">
+                    <p className="text-sm leading-relaxed text-fg-mute">
                       {exercise.description}
                     </p>
                   </div>
 
                   <button
-                    className="mt-10 flex w-full items-center justify-between rounded-full bg-surface-container-highest px-8 py-5 font-headline font-bold text-on-surface transition-all group-hover:bg-primary group-hover:text-on-primary active:scale-95"
+                    className="mt-10 flex w-full items-center justify-between rounded-full bg-surface-elev border border-border px-8 py-4 font-bold text-fg transition-all group-hover:bg-flame group-hover:text-white active:scale-95 group-hover:border-flame"
                     onClick={() => {
                       setActiveExercise(exercise.name);
                       if (athleteMode === 'trainer' && selectedTrainerId) {
@@ -408,22 +410,22 @@ function PracticeDashboard({
         )}
       </section>
 
-      <nav className="fixed bottom-0 left-0 z-50 flex h-20 w-full items-center justify-around bg-inverse-surface/95 px-4 text-inverse-on-surface shadow-2xl backdrop-blur-2xl md:hidden">
+      <nav className="fixed bottom-0 left-0 z-50 flex h-20 w-full items-center justify-around bg-surface-card border-t border-border px-4 text-fg shadow-2xl md:hidden">
         <a
-          className="flex flex-col items-center justify-center rounded-[1rem] bg-primary-fixed px-3 py-1 text-primary"
+          className="flex flex-col items-center justify-center rounded-xl bg-flame/10 px-3 py-1 text-flame"
           href="#"
         >
           <span className="material-symbols-outlined">grid_view</span>
-          <span className="mt-1 font-body text-[10px] font-semibold uppercase">
+          <span className="mt-1 text-[10px] font-semibold uppercase">
             Practice
           </span>
         </a>
         <a
-          className="flex flex-col items-center justify-center px-3 py-1 text-inverse-on-surface/60 hover:text-inverse-on-surface transition-colors"
+          className="flex flex-col items-center justify-center px-3 py-1 text-fg-mute hover:text-fg transition-colors"
           href="/history"
         >
           <span className="material-symbols-outlined">insights</span>
-          <span className="mt-1 font-body text-[10px] font-semibold uppercase">
+          <span className="mt-1 text-[10px] font-semibold uppercase">
             History
           </span>
         </a>
@@ -511,8 +513,8 @@ export default function LoginPage() {
 
   if (!authLoaded) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-surface text-on-surface">
-        <div className="rounded-[2rem] bg-surface-container-low p-8 font-body text-on-surface-variant">
+      <main className="flex min-h-screen items-center justify-center bg-bg text-fg">
+        <div className="rounded-2xl bg-surface-card border border-border p-8 text-fg-mute">
           Loading your practice dashboard...
         </div>
       </main>
@@ -533,72 +535,69 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-grow flex-col md:flex-row">
-      <section className="relative hidden items-center justify-center overflow-hidden bg-primary p-16 md:flex md:w-[60%]">
-        <div className="absolute inset-0 z-10 bg-gradient-to-br from-primary via-primary-container to-primary opacity-90" />
+    <main className="flex h-screen w-screen overflow-hidden flex-col md:flex-row">
+      <section className="relative hidden items-center justify-center overflow-hidden bg-black p-16 md:flex md:w-[60%]">
         <img
           alt="athlete training under dramatic studio lighting"
-          className="absolute inset-0 z-0 h-full w-full object-cover grayscale mix-blend-overlay"
+          className="absolute inset-0 z-0 h-full w-full object-cover grayscale mix-blend-overlay opacity-30"
           src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnEJcwUJkb1T0QELGiKo4B-byOEgKr4qujuGomLe1QgncpnuqFJ7UZy3KxMO6IjOYaJNY5LNCBFio4nHVvfwf1mP5iT3UF1j8PxEvetwOmTfIKvDSKd79jic4V4gjVNWpAPi488-KsGubBBxbtky_PpxC_85ndoh88SCQii-gS9gCCIL7iZhFHZwHdCAjzlZ541vGlpHBVIcrr03K67Z8WQa8AFkRnbyY-snfG0C9tFauVSv5AW9ocznB_fKBgjEjg5BI2u3zG28o"
         />
         <div className="relative z-20 max-w-2xl">
-          <div className="rounded-xl bg-surface-container-lowest/10 p-12 backdrop-blur-xl">
-            <div className="mb-6 inline-flex items-center gap-3 rounded-full bg-secondary-container/20 px-4 py-2">
-              <span className="material-symbols-outlined text-sm text-secondary-fixed">
-                auto_awesome
-              </span>
-              <span className="font-label text-xs uppercase text-secondary-fixed">
-                VisionFit
-              </span>
+          <div className="relative overflow-hidden rounded-3xl border border-flame/30 bg-[#0a0a0a]/80 p-12 backdrop-blur-2xl shadow-[0_8px_40px_-12px_rgba(255,107,26,0.2)]">
+            <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-flame opacity-20 blur-[100px]" />
+            <div className="relative z-10">
+              <div className="eyebrow mb-6 !text-white/80">
+                <span className="bar bg-flame"></span>
+                <span>VISIONFIT · ATHLETE PORTAL</span>
+              </div>
+              <h1 className="h1 !text-white mb-8">
+                Master your form.<br />
+                <em className="h-serif-italic text-flame font-normal">Unlock</em> your peak.
+              </h1>
+              <h2 className="hidden">Workout Form AI Analyzer</h2>
+              <p className="lede mb-12 max-w-lg !text-white/70">
+                Refine your technique with real-time biomechanical analysis.
+                Track every rep, detect every deviation, and unlock your peak
+                physical performance.
+              </p>
+              <p className="kicker !text-white/50">
+                Used by athletes and coaches for focused movement practice.
+              </p>
             </div>
-            <h1 className="mb-8 font-headline text-5xl font-extrabold leading-tight text-on-primary lg:text-7xl">
-              Master your <br />
-              form.
-            </h1>
-            <h2 className="hidden">Workout Form AI Analyzer</h2>
-            <p className="mb-12 max-w-lg font-body text-xl leading-relaxed text-primary-fixed-dim opacity-90">
-              Refine your technique with real-time biomechanical analysis.
-              Track every rep, detect every deviation, and unlock your peak
-              physical performance.
-            </p>
-            <p className="font-label text-sm text-primary-fixed-dim">
-              Used by athletes and coaches for focused movement practice.
-            </p>
           </div>
         </div>
       </section>
 
-      <section className="relative flex flex-grow flex-col items-center justify-center overflow-y-auto bg-surface p-8 md:w-[40%] md:p-16 lg:p-24">
+      <section className="relative flex flex-grow flex-col items-center justify-center overflow-y-auto bg-bg p-8 md:w-[40%] md:p-16 lg:p-24">
         <div className="mb-12 text-center md:hidden">
-          <span className="font-headline text-2xl font-black text-primary">
+          <span className="h2 text-fg italic">
             VisionFiT
           </span>
         </div>
         <div className="w-full max-w-md">
           <div className="mb-12">
-            <h2 className="mb-2 font-headline text-3xl font-bold text-on-surface">
-              Welcome Back, Athlete.
+            <span className="kicker">— LOG IN TO TRAIN</span>
+            <h2 className="mt-4 h2 text-fg">
+              Welcome back.<br />
+              <em className="h-serif-italic text-flame font-normal">Ready</em> to perform?
             </h2>
-            <p className="font-body text-on-surface-variant">
-              Your performance data is ready for analysis.
-            </p>
           </div>
           <form className="space-y-8" onSubmit={handleSubmit}>
             {error && (
-              <div className="rounded-xl bg-error-container p-4 font-body text-sm text-on-error-container">
+              <div className="rounded-xl bg-[#FFE4E4] p-4 text-sm text-[#D32F2F] border border-[#FFCDCD] dark:bg-[#4A1010] dark:text-[#FFB4B4] dark:border-[#5C1818]">
                 {error}
               </div>
             )}
             <div className="space-y-2">
               <label
-                className="ml-1 font-label text-xs font-bold uppercase text-on-surface-variant"
+                className="ml-1 kicker text-fg-mute"
                 htmlFor="email"
               >
                 Email Address
               </label>
               <div className="relative">
                 <input
-                  className="h-16 w-full rounded-xl border-none bg-surface-container-highest px-6 font-body text-on-surface outline-none transition-all duration-300 placeholder:text-outline-variant focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary"
+                  className="h-16 w-full rounded-2xl border border-border bg-surface-card px-6 text-fg outline-none transition-all duration-300 placeholder:text-fg-mute focus:bg-surface-elev focus:border-flame"
                   id="email"
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="athlete@performance.ai"
@@ -606,21 +605,21 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                 />
-                <span className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-outline-variant">
+                <span className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-fg-mute">
                   mail
                 </span>
               </div>
             </div>
             <div className="space-y-2">
               <label
-                className="ml-1 font-label text-xs font-bold uppercase text-on-surface-variant"
+                className="ml-1 kicker text-fg-mute"
                 htmlFor="password"
               >
                 Password
               </label>
               <div className="relative">
                 <input
-                  className="h-16 w-full rounded-xl border-none bg-surface-container-highest pl-6 pr-24 font-body text-on-surface outline-none transition-all duration-300 placeholder:text-outline-variant focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary"
+                  className="h-16 w-full rounded-2xl border border-border bg-surface-card pl-6 pr-24 text-fg outline-none transition-all duration-300 placeholder:text-fg-mute focus:bg-surface-elev focus:border-flame"
                   id="password"
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Password"
@@ -628,13 +627,13 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                 />
-                <span className="material-symbols-outlined absolute right-14 top-1/2 -translate-y-1/2 text-outline-variant pointer-events-none">
+                <span className="material-symbols-outlined absolute right-14 top-1/2 -translate-y-1/2 text-fg-mute pointer-events-none">
                   lock
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-outline-variant hover:text-primary transition-colors focus:outline-none"
+                  className="material-symbols-outlined absolute right-5 top-1/2 -translate-y-1/2 text-fg-mute hover:text-flame transition-colors focus:outline-none"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? 'visibility_off' : 'visibility'}
@@ -643,7 +642,7 @@ export default function LoginPage() {
             </div>
             <div className="pt-4">
               <button
-                className="ambient-shadow group flex h-16 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-primary to-primary-container font-headline text-lg font-bold text-on-primary transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                className="group flex h-16 w-full items-center justify-center gap-2 rounded-full bg-flame text-lg font-bold text-white transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={loading}
                 type="submit"
               >

@@ -98,7 +98,7 @@ export default function TrainerDashboardPage() {
     }
   };
 
-  if (loading) return <div className="p-12 text-on-surface-variant font-body">Loading Dashboard...</div>;
+  if (loading) return <div className="p-12 text-fg-mute font-body">Loading Dashboard...</div>;
 
   return (
     <div className="px-10 py-10 w-full space-y-6">
@@ -115,13 +115,13 @@ export default function TrainerDashboardPage() {
               required
               value={newAthleteEmail}
               onChange={(e) => setNewAthleteEmail(e.target.value)}
-              className="w-64 bg-surface-container-lowest border border-outline/10 text-on-surface text-sm rounded-full py-3 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow shadow-sm"
+              className="w-64 bg-bg border border-border text-fg text-sm rounded-lg py-2 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-flame/20 transition-shadow shadow-sm"
             />
           </div>
           <button 
             type="submit" 
             disabled={isAdding}
-            className="flex items-center gap-2 px-6 py-3 bg-primary text-on-primary rounded-full font-headline font-bold text-sm shadow-md hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-70 disabled:hover:scale-100"
+            className="flex items-center gap-2 px-4 py-2 bg-flame text-on-dark rounded-lg font-bold text-sm shadow-flame hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-70 disabled:hover:scale-100"
           >
             {isAdding ? (
               <span className="material-symbols-outlined text-[20px] animate-spin">refresh</span>
@@ -134,18 +134,18 @@ export default function TrainerDashboardPage() {
       </div>
 
       {/* Athlete List */}
-      <div className="bg-surface-container-lowest rounded-[2rem] shadow-[0_12px_40px_rgb(0,0,0,0.02)] border border-outline/5 overflow-hidden">
+      <div className="bg-surface-card rounded-2xl shadow-card border border-border overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-outline/10">
-              <th className="py-3 px-8 text-left text-[11px] font-label font-bold text-outline uppercase tracking-wider">Athlete</th>
-              <th className="py-3 px-6 text-left text-[11px] font-label font-bold text-outline uppercase tracking-wider">Email</th>
-              <th className="py-3 px-6 text-left text-[11px] font-label font-bold text-outline uppercase tracking-wider">Total Sessions</th>
-              <th className="py-3 px-6 text-left text-[11px] font-label font-bold text-outline uppercase tracking-wider">Last Session</th>
-              <th className="py-3 px-8 text-right text-[11px] font-label font-bold text-outline uppercase tracking-wider">Actions</th>
+            <tr className="border-b border-border">
+              <th className="py-3 px-8 text-left kicker text-fg-mute uppercase tracking-wider">Athlete</th>
+              <th className="py-3 px-6 text-left kicker text-fg-mute uppercase tracking-wider">Email</th>
+              <th className="py-3 px-6 text-left kicker text-fg-mute uppercase tracking-wider">Total Sessions</th>
+              <th className="py-3 px-6 text-left kicker text-fg-mute uppercase tracking-wider">Last Session</th>
+              <th className="py-3 px-8 text-right kicker text-fg-mute uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-outline/5">
+          <tbody className="divide-y divide-border">
             {athletes.map((athlete, index) => {
               // Mocking data for visual fidelity based on the design
               const isFirst = index === 0;
@@ -162,30 +162,30 @@ export default function TrainerDashboardPage() {
                 <tr 
                   key={athlete.id} 
                   onClick={() => router.push(`/trainer/athlete/${athlete.id}/sessions`)}
-                  className="hover:bg-primary/5 transition-colors group cursor-pointer"
+                  className="hover:bg-surface-elev transition-colors group cursor-pointer"
                 >
                   <td className="py-3 px-8">
                     <div className="flex items-center gap-4">
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-surface-container-high shrink-0 border border-outline/10">
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-surface shrink-0 border border-border">
                         <img src={avatar} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div>
-                        <span className="font-headline font-bold text-sm text-on-surface group-hover:text-primary transition-colors leading-tight">
+                        <span className="font-bold text-sm text-fg group-hover:text-flame transition-colors leading-tight">
                           {athlete.name || athlete.email.split('@')[0]}
                         </span>
                       </div>
                     </div>
                   </td>
                   
-                  <td className="py-3 px-6 text-sm text-on-surface-variant font-medium">
+                  <td className="py-3 px-6 text-sm text-fg-mute font-medium">
                     {athlete.email}
                   </td>
                   
-                  <td className="py-3 px-6 text-sm text-on-surface-variant font-medium">
+                  <td className="py-3 px-6 text-sm text-fg-mute font-medium">
                     {athlete.total_sessions || 0}
                   </td>
                   
-                  <td className="py-3 px-6 text-sm text-on-surface-variant">
+                  <td className="py-3 px-6 text-sm text-fg-mute">
                     {athlete.last_session 
                       ? new Date(athlete.last_session).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) 
                       : 'Never'}
@@ -196,21 +196,21 @@ export default function TrainerDashboardPage() {
                       <Link 
                         href={`/trainer/athlete/${athlete.id}/exercises`}
                         title="Exercise Configuration"
-                        className="p-2 text-outline hover:text-on-surface transition-colors rounded-lg hover:bg-surface-container-high"
+                        className="p-2 text-fg-mute hover:text-fg transition-colors rounded-lg hover:bg-surface-elev"
                       >
                         <span className="material-symbols-outlined text-[20px]">tune</span>
                       </Link>
                       <Link 
                         href={`/trainer/athlete/${athlete.id}/sessions`}
                         title="Session History"
-                        className="p-2 text-outline hover:text-on-surface transition-colors rounded-lg hover:bg-surface-container-high"
+                        className="p-2 text-fg-mute hover:text-fg transition-colors rounded-lg hover:bg-surface-elev"
                       >
                         <span className="material-symbols-outlined text-[20px]">history</span>
                       </Link>
                       <button 
                         onClick={() => handleToggleStatus(athlete.id, athlete.status)}
                         title={athlete.status === 'active' ? 'Deactivate Athlete' : 'Activate Athlete'}
-                        className={`p-2 transition-colors rounded-lg hover:bg-surface-container-high ${athlete.status === 'active' ? 'text-green-600' : 'text-error'}`}
+                        className={`p-2 transition-colors rounded-lg hover:bg-surface-elev ${athlete.status === 'active' ? 'text-green-600' : 'text-err'}`}
                       >
                         <span className="material-symbols-outlined text-[20px]">
                           {athlete.status === 'active' ? 'toggle_on' : 'toggle_off'}
@@ -226,11 +226,11 @@ export default function TrainerDashboardPage() {
             {athletes.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-16 text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-surface-container-high text-outline mb-4">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-surface-elev text-fg-mute mb-4 border border-border">
                     <span className="material-symbols-outlined text-3xl">group_off</span>
                   </div>
-                  <h3 className="text-lg font-headline font-bold text-on-surface">No athletes found</h3>
-                  <p className="text-on-surface-variant mt-1 text-sm max-w-sm mx-auto">You haven't added any athletes to your roster yet. Click the Add Athlete button to get started.</p>
+                  <h3 className="text-lg h3 text-fg">No athletes found</h3>
+                  <p className="text-fg-mute mt-1 text-sm max-w-sm mx-auto">You haven't added any athletes to your roster yet. Click the Add Athlete button to get started.</p>
                 </td>
               </tr>
             )}

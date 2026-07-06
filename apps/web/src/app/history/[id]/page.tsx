@@ -8,6 +8,8 @@ import {
   BarChart, Bar, Cell, AreaChart, Area, Brush, ReferenceLine, ReferenceArea
 } from 'recharts';
 import { SkeletonReplay } from '@/components/exercise/SkeletonReplay';
+import { SkeletonReplay3D } from '@/components/exercise/SkeletonReplay3D';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 type Rep = {
   id: string;
@@ -60,6 +62,7 @@ export default function SessionDetailPage() {
   const [angles, setAngles] = useState<any[]>([]);
   const [activeReplayId, setActiveReplayId] = useState<string | null>(null);
   const [globalShowAngles, setGlobalShowAngles] = useState(true);
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('3d');
 
   const [sessionReplay, setSessionReplay] = useState<{
     isOpen: boolean;
@@ -564,34 +567,34 @@ export default function SessionDetailPage() {
   );
 
   return (
-    <main className="min-h-screen bg-surface pb-28 text-on-surface">
-      <nav className="fixed left-0 top-0 z-50 flex h-16 sm:h-20 w-full items-center justify-between bg-surface/30 px-4 shadow-sm backdrop-blur-xl md:px-8 border-b border-outline-variant/10">
+    <main className="min-h-screen bg-bg pb-28 text-fg">
+      <nav className="fixed left-0 top-0 z-50 flex h-16 sm:h-20 w-full items-center justify-between bg-surface-card/60 px-4 shadow-sm backdrop-blur-xl md:px-8 border-b border-border">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 max-w-[35%] xs:max-w-[45%] mr-2">
           <button
             onClick={() => router.push('/history')}
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-surface-container-high text-primary hover:bg-primary hover:text-on-primary transition-all"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-surface-elev border border-border text-fg hover:bg-surface-elev-hover transition-all"
           >
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <span className="hidden font-headline text-xl font-black italic text-primary lg:block">VisionFiT</span>
+          <span className="hidden h3 italic text-fg lg:block">VisionFiT</span>
 
-          <div className="h-8 w-[1px] bg-outline-variant/20 mx-2 hidden lg:block" />
+          <div className="h-8 w-[1px] bg-border mx-2 hidden lg:block" />
 
           {session && (
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="flex h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary hidden xs:flex">
+              <div className="flex h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-xl bg-surface-elev border border-border text-flame hidden xs:flex">
                 <span className="material-symbols-outlined text-lg sm:text-xl">directions_run</span>
               </div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  <h2 className="font-headline text-xs sm:text-sm font-black text-primary leading-none truncate">
+                  <h2 className="h3 !text-xs sm:!text-sm text-fg truncate">
                     {session.exercise_name}
                   </h2>
-                  <span className="flex-shrink-0 bg-surface-container-highest text-primary/80 px-1 sm:px-1.5 py-0.5 rounded-full border border-outline-variant/10 text-[7px] sm:text-[8px] font-bold tracking-tight">
+                  <span className="flex-shrink-0 bg-surface-elev text-fg px-1 sm:px-1.5 py-0.5 rounded-full border border-border text-[7px] sm:text-[8px] font-bold tracking-tight">
                     {selectedAttemptIndex === -1 ? 'ALL' : `REP ${selectedAttemptIndex + 1}`}
                   </span>
                 </div>
-                <div className="hidden sm:flex items-center gap-1 text-[8px] md:text-[9px] font-medium text-outline-variant mt-0.5 truncate">
+                <div className="hidden sm:flex items-center gap-1 text-[8px] md:text-[9px] font-medium text-fg-mute mt-0.5 truncate">
                   <span>{formatDetailedDateTime(session.start_time)}</span>
                 </div>
               </div>
@@ -600,26 +603,26 @@ export default function SessionDetailPage() {
         </div>
 
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-          <div className="inline-flex rounded-full bg-surface-container-high p-0.5 sm:p-1 shadow-inner">
+          <div className="inline-flex rounded-full bg-surface-elev border border-border p-1 shadow-inner">
             <button
               onClick={() => setActiveTab('performance')}
-              className={`flex items-center gap-1.5 sm:gap-2 rounded-full px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'performance'
-                ? 'bg-surface-container-lowest text-primary shadow-md'
-                : 'text-on-surface-variant hover:text-primary'
+              className={`flex items-center gap-1.5 sm:gap-2 rounded-[14px] px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'performance'
+                ? 'bg-surface-card text-flame shadow-md'
+                : 'text-fg-mute hover:text-fg'
                 }`}
             >
               <span className="material-symbols-outlined text-base sm:text-lg">analytics</span>
-              <span className="font-headline text-[10px] sm:text-xs font-bold">Analysis</span>
+              <span className="font-bold text-[10px] sm:text-xs">Analysis</span>
             </button>
             <button
               onClick={() => setActiveTab('attempts')}
-              className={`flex items-center gap-1.5 sm:gap-2 rounded-full px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'attempts'
-                ? 'bg-surface-container-lowest text-primary shadow-md'
-                : 'text-on-surface-variant hover:text-primary'
+              className={`flex items-center gap-1.5 sm:gap-2 rounded-[14px] px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'attempts'
+                ? 'bg-surface-card text-flame shadow-md'
+                : 'text-fg-mute hover:text-fg'
                 }`}
             >
               <span className="material-symbols-outlined text-base sm:text-lg">history_edu</span>
-              <span className="font-headline text-[10px] sm:text-xs font-bold">Log</span>
+              <span className="font-bold text-[10px] sm:text-xs">Log</span>
             </button>
             <button
               onClick={() => {
@@ -628,15 +631,19 @@ export default function SessionDetailPage() {
                   startSessionReplay();
                 }
               }}
-              className={`flex items-center gap-1.5 sm:gap-2 rounded-full px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'replay'
-                ? 'bg-surface-container-lowest text-primary shadow-md'
-                : 'text-on-surface-variant hover:text-primary'
+              className={`flex items-center gap-1.5 sm:gap-2 rounded-[14px] px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'replay'
+                ? 'bg-surface-card text-flame shadow-md'
+                : 'text-fg-mute hover:text-fg'
                 }`}
             >
               <span className="material-symbols-outlined text-base sm:text-lg">movie</span>
-              <span className="font-headline text-[10px] sm:text-xs font-bold">Play Session</span>
+              <span className="font-bold text-[10px] sm:text-xs">Play Session</span>
             </button>
           </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-4 ml-auto">
+          <ThemeToggle />
         </div>
       </nav>
 
@@ -656,25 +663,28 @@ export default function SessionDetailPage() {
         {activeTab !== 'replay' && (
           <motion.div
             variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }}
-            className="mb-12 grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-8"
+            className="mb-8 flex flex-col md:flex-row flex-wrap lg:flex-nowrap rounded-3xl bg-surface-card border border-border shadow-sm divide-y md:divide-y-0 md:divide-x divide-border overflow-hidden"
           >
             {[
-              { label: 'Total Attempts', value: session.attempts.length, icon: 'ads_click' },
-              { label: 'Successful Attempts', value: session.attempts.filter(a => a.status === 'success').length, icon: 'check_circle' },
-              { label: 'Failed Attempts', value: session.attempts.filter(a => a.status === 'failed').length, icon: 'error' },
-              { label: 'Cancelled Attempts', value: session.attempts.filter(a => a.status === 'canceled').length, icon: 'cancel' },
-              { label: 'Duration', value: `${Math.floor(session.total_duration_seconds / 60)}m ${session.total_duration_seconds % 60}s`, icon: 'timer' },
-              { label: 'Form Flaws', value: flawData.reduce((acc, curr) => acc + curr.count, 0), icon: 'warning' }
+              { label: 'Total', value: session.attempts.length, icon: 'ads_click', color: 'text-flame', bg: 'bg-flame/10' },
+              { label: 'Success', value: session.attempts.filter(a => a.status === 'success').length, icon: 'check_circle', color: 'text-ok', bg: 'bg-ok/10' },
+              { label: 'Failed', value: session.attempts.filter(a => a.status === 'failed').length, icon: 'error', color: 'text-err', bg: 'bg-err/10' },
+              { label: 'Canceled', value: session.attempts.filter(a => a.status === 'canceled').length, icon: 'cancel', color: 'text-fg-mute', bg: 'bg-surface-elev' },
+              { label: 'Duration', value: `${Math.floor(session.total_duration_seconds / 60)}m ${session.total_duration_seconds % 60}s`, icon: 'timer', color: 'text-flame', bg: 'bg-flame/10' },
+              { label: 'Flaws', value: flawData.reduce((acc, curr) => acc + curr.count, 0), icon: 'warning', color: 'text-flame', bg: 'bg-flame/10' }
             ].map((stat, i) => (
               <motion.div
                 key={i}
-                variants={{ hidden: { opacity: 0, scale: 0.9 }, show: { opacity: 1, scale: 1 } }}
-                whileHover={{ y: -5 }}
-                className="rounded-[2.5rem] bg-surface-container-lowest p-6 shadow-sm border border-outline-variant/10 text-center"
+                variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
+                className="flex-1 p-4 lg:p-5 flex items-center justify-start sm:justify-center gap-4 hover:bg-surface-elev transition-colors"
               >
-                <span className="material-symbols-outlined text-primary mb-2 text-2xl">{stat.icon}</span>
-                <p className="font-label text-[10px] uppercase tracking-widest text-outline font-bold truncate">{stat.label}</p>
-                <p className="font-headline text-2xl font-bold text-primary">{stat.value}</p>
+                <div className={`flex items-center justify-center h-10 w-10 sm:h-12 sm:w-12 rounded-xl border border-border/50 ${stat.bg}`}>
+                  <span className={`material-symbols-outlined ${stat.color} text-xl sm:text-2xl`}>{stat.icon}</span>
+                </div>
+                <div className="flex flex-col text-left">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-fg-mute">{stat.label}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-fg leading-none mt-1">{stat.value}</p>
+                </div>
               </motion.div>
             ))}
           </motion.div>
@@ -692,24 +702,24 @@ export default function SessionDetailPage() {
           {activeTab === 'performance' && (
             <>
               {/* Biomechanical Breakdown - Elevated & Full Width */}
-              <div className="lg:col-span-2 space-y-8">
-                <div className="rounded-[3rem] bg-surface-container-low p-8">
-                  <div className="mb-8 flex items-center justify-between">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="rounded-3xl bg-surface-card border border-border p-6 md:px-8">
+                  <div className="mb-6 flex items-center justify-between">
                     <div>
-                      <h2 className="font-headline text-2xl font-bold text-primary">Biomechanical Breakdown</h2>
-                      <p className="font-label text-[10px] uppercase tracking-widest text-outline">High-Resolution Joint Analysis</p>
+                      <h2 className="text-xl font-bold text-fg">Biomechanical Breakdown</h2>
+                      <p className="kicker text-[10px] text-fg-mute">High-Resolution Joint Analysis</p>
                     </div>
-                    <div className="rounded-full bg-primary/10 px-4 py-1">
-                      <span className="font-headline text-[10px] font-bold text-primary uppercase">Deep Dive Mode</span>
+                    <div className="rounded-full bg-surface-elev border border-border px-4 py-1">
+                      <span className="kicker text-[10px] text-flame">Deep Dive Mode</span>
                     </div>
                   </div>
 
                   {/* Global Attempt Selector (Timeline) */}
-                  <div className="relative mb-8 flex items-center border-b border-outline-variant/10 pb-4">
+                  <div className="relative mb-6 flex items-center border-b border-border pb-4">
                     {timeline.length > 4 && (
                       <button
                         onClick={() => scrollTimeline('left')}
-                        className="absolute left-0 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface shadow-md text-primary hover:bg-primary hover:text-on-primary transition-all border border-outline-variant/20"
+                        className="absolute left-0 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface-card shadow-md text-fg hover:bg-surface-elev hover:text-flame transition-all border border-border"
                       >
                         <span className="material-symbols-outlined text-lg">chevron_left</span>
                       </button>
@@ -723,9 +733,9 @@ export default function SessionDetailPage() {
                       {/* ALL Option First */}
                       <button
                         onClick={() => setSelectedAttemptIndex(-1)}
-                        className={`flex-shrink-0 rounded-full px-8 py-2 font-headline text-xs font-bold transition-all mb-2 ${selectedAttemptIndex === -1
-                          ? 'bg-primary text-on-primary shadow-lg scale-105'
-                          : 'bg-surface-container-highest text-outline hover:bg-surface-container-high'
+                        className={`flex-shrink-0 rounded-full px-8 py-2 font-bold text-xs transition-all mb-2 ${selectedAttemptIndex === -1
+                          ? 'bg-flame text-white shadow-lg scale-105'
+                          : 'bg-surface-elev text-fg-mute hover:text-fg border border-border'
                           }`}
                       >
                         ALL
@@ -735,13 +745,13 @@ export default function SessionDetailPage() {
                         <button
                           key={move.id}
                           onClick={() => setSelectedAttemptIndex(idx)}
-                          className={`flex-shrink-0 rounded-full px-6 py-2 font-headline text-xs font-bold transition-all mb-2 border ${selectedAttemptIndex === idx
-                            ? 'bg-primary text-on-primary shadow-lg scale-105 border-transparent'
+                          className={`flex-shrink-0 rounded-full px-6 py-2 font-bold text-xs transition-all mb-2 border ${selectedAttemptIndex === idx
+                            ? 'bg-flame text-white shadow-lg scale-105 border-transparent'
                             : move.status === 'success'
-                              ? 'bg-success/10 text-success border-success/20 hover:bg-success/20'
+                              ? 'bg-[#E8F5E9] text-[#2E7D32] border-[#C8E6C9] hover:bg-[#C8E6C9] dark:bg-[#1B3320] dark:text-[#81C784] dark:border-[#2E5A36]'
                               : move.status === 'failed'
-                                ? 'bg-error/10 text-error border-error/20 hover:bg-error/20'
-                                : 'bg-surface-container-highest text-outline border-outline-variant/10 hover:bg-surface-container-high'
+                                ? 'bg-[#FFE4E4] text-[#D32F2F] border-[#FFCDCD] hover:bg-[#FFCDCD] dark:bg-[#4A1010] dark:text-[#FFB4B4] dark:border-[#5C1818]'
+                                : 'bg-surface-elev text-fg border-border hover:bg-surface-elev-hover'
                             }`}
                         >
                           {move.label}
@@ -752,7 +762,7 @@ export default function SessionDetailPage() {
                     {timeline.length > 4 && (
                       <button
                         onClick={() => scrollTimeline('right')}
-                        className="absolute right-0 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface shadow-md text-primary hover:bg-primary hover:text-on-primary transition-all border border-outline-variant/20"
+                        className="absolute right-0 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface-card shadow-md text-fg hover:bg-surface-elev hover:text-flame transition-all border border-border"
                       >
                         <span className="material-symbols-outlined text-lg">chevron_right</span>
                       </button>
@@ -760,19 +770,19 @@ export default function SessionDetailPage() {
                   </div>
 
                   {/* Selected Attempt Summary */}
-                  <div className="mb-12 grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="rounded-3xl bg-surface-container-lowest p-5 border border-outline-variant/10">
-                      <p className="font-label text-[10px] uppercase tracking-widest text-outline mb-1 font-bold">Status</p>
+                  <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="rounded-2xl bg-surface-elev p-4 border border-border">
+                      <p className="kicker text-[10px] text-fg-mute mb-1">Status</p>
                       <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${selectedAttemptIndex === -1 ? 'bg-primary' : (timeline[selectedAttemptIndex]?.status === 'success' ? 'bg-success' : 'bg-error')}`} />
-                        <p className="font-headline text-xl font-bold capitalize text-primary">
+                        <div className={`w-2 h-2 rounded-full ${selectedAttemptIndex === -1 ? 'bg-flame' : (timeline[selectedAttemptIndex]?.status === 'success' ? 'bg-[#2E7D32]' : 'bg-[#D32F2F]')}`} />
+                        <p className="text-lg font-bold text-fg capitalize">
                           {selectedAttemptIndex === -1 ? 'Full Session' : (timeline[selectedAttemptIndex]?.status || 'Unknown')}
                         </p>
                       </div>
                     </div>
-                    <div className="rounded-3xl bg-surface-container-lowest p-5 border border-outline-variant/10">
-                      <p className="font-label text-[10px] uppercase tracking-widest text-outline mb-1 font-bold">Quality</p>
-                      <p className="font-headline text-xl font-bold text-primary">
+                    <div className="rounded-2xl bg-surface-elev p-4 border border-border">
+                      <p className="kicker text-[10px] text-fg-mute mb-1">Quality</p>
+                      <p className="text-lg font-bold text-fg">
                         {selectedAttemptIndex === -1
                           ? `${Math.round(session.average_accuracy)}%`
                           : (timeline[selectedAttemptIndex]?.status === 'success'
@@ -780,9 +790,9 @@ export default function SessionDetailPage() {
                             : 'N/A')}
                       </p>
                     </div>
-                    <div className="md:col-span-2 rounded-3xl bg-surface-container-lowest p-5 border border-outline-variant/10">
-                      <p className="font-label text-[10px] uppercase tracking-widest text-outline mb-1 font-bold">Analysis</p>
-                      <p className="font-body text-sm font-medium text-on-surface-variant">
+                    <div className="md:col-span-2 rounded-2xl bg-surface-elev p-4 border border-border">
+                      <p className="kicker text-[10px] text-fg-mute mb-1">Analysis</p>
+                      <p className="text-sm font-medium text-fg-mute">
                         {selectedAttemptIndex === -1
                           ? 'Reviewing entire session kinematics for consistency and rhythm.'
                           : (timeline[selectedAttemptIndex]?.status === 'failed'
@@ -814,12 +824,12 @@ export default function SessionDetailPage() {
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: gIdx * 0.1 }}
-                          className="rounded-[2.5rem] bg-surface-container-lowest p-8 border border-outline-variant/10 mb-8"
+                          className="rounded-3xl bg-surface-card p-6 border border-border mb-6"
                         >
-                          <div className="mb-6 flex items-center justify-between">
+                          <div className="mb-4 flex items-center justify-between">
                             <div>
-                              <h3 className="font-headline text-xl font-bold text-primary">{group.name}</h3>
-                              <p className="font-label text-[10px] uppercase text-outline">
+                              <h3 className="text-lg font-bold text-fg capitalize">{group.name}</h3>
+                              <p className="kicker text-[10px] text-fg-mute">
                                 {isRhythm ? 'Rhythm & Consistency' : (group.isBilateral ? 'Bilateral Comparison' : 'Mechanical Range')}
                               </p>
                             </div>
@@ -888,11 +898,12 @@ export default function SessionDetailPage() {
                                   label={{ value: yLabel, angle: -90, position: 'outside', offset: -20, fontSize: 10, fill: 'var(--color-outline)', fontWeight: 800 }}
                                 />
                                 <Tooltip
+                                  wrapperStyle={{ zIndex: 100 }}
                                   contentStyle={{
                                     borderRadius: '24px',
-                                    border: 'none',
+                                    border: '1px solid var(--border)',
                                     boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-                                    backgroundColor: 'var(--color-surface-container-lowest)',
+                                    backgroundColor: 'var(--surface-card)',
                                     padding: '16px'
                                   }}
                                 />
@@ -939,14 +950,15 @@ export default function SessionDetailPage() {
                                     {allMarkers.map((m, mIdx) => (
                                       <React.Fragment key={mIdx}>
                                         {/* Start and End frames: Solid and darker */}
-                                        <ReferenceLine x={m.start} stroke="var(--color-outline)" strokeWidth={1} strokeOpacity={0.8} />
-                                        <ReferenceLine x={m.end} stroke="var(--color-outline)" strokeWidth={1} strokeOpacity={0.8} />
+                                        <ReferenceLine isFront={true} x={m.start} stroke="var(--fg-mute)" strokeWidth={1} strokeOpacity={0.8} />
+                                        <ReferenceLine isFront={true} x={m.end} stroke="var(--fg-mute)" strokeWidth={1} strokeOpacity={0.8} />
 
                                         {/* Mid frame: Dotted for peak visibility */}
-                                        <ReferenceLine x={m.mid} stroke="var(--color-primary)" strokeDasharray="4 4" strokeWidth={1.5} />
+                                        <ReferenceLine isFront={true} x={m.mid} stroke="var(--flame)" strokeDasharray="4 4" strokeWidth={1.5} />
 
                                         {/* Rep Background Area */}
                                         <ReferenceArea
+                                          isFront={true}
                                           x1={m.start}
                                           x2={m.end}
                                           fill="#003366"
@@ -956,9 +968,10 @@ export default function SessionDetailPage() {
                                         {/* Inter-rep Gap: Shaded Light Red */}
                                         {mIdx < allMarkers.length - 1 && (
                                           <ReferenceArea
+                                            isFront={true}
                                             x1={m.end}
                                             x2={allMarkers[mIdx + 1].start}
-                                            fill="var(--color-error)"
+                                            fill="#D32F2F"
                                             fillOpacity={0.07}
                                           />
                                         )}
@@ -986,16 +999,16 @@ export default function SessionDetailPage() {
                   )}
 
                   {/* Form Flaws Distribution Chart */}
-                  <div className="rounded-[2.5rem] bg-surface-container-lowest p-8 border border-outline-variant/10 mb-8">
-                    <div className="mb-8 flex items-center justify-between">
+                  <div className="rounded-3xl bg-surface-card p-6 border border-border mb-6">
+                    <div className="mb-4 flex items-center justify-between">
                       <div>
-                        <h3 className="font-headline text-xl font-bold text-primary">Form Flaw Distribution</h3>
-                        <p className="font-label text-[10px] uppercase tracking-widest text-outline">Frequency Analysis per Repetition</p>
+                        <h3 className="text-lg font-bold text-fg">Form Flaw Distribution</h3>
+                        <p className="kicker text-[10px] text-fg-mute">Frequency Analysis per Repetition</p>
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-2 rounded-full" style={{ backgroundColor: '#003366' }}></div>
-                          <span className="font-label text-[9px] uppercase font-black text-outline">Detected Flaws</span>
+                          <span className="kicker text-[10px] text-fg-mute">Detected Flaws</span>
                         </div>
                       </div>
                     </div>
@@ -1051,11 +1064,11 @@ export default function SessionDetailPage() {
           )} {activeTab === 'attempts' && (
             <div className="lg:col-span-2 space-y-8">
               {/* Attempt Log - Full Width when in tab */}
-              <div className="rounded-[3rem] bg-surface-container-low p-8">
-                <h2 className="mb-8 font-headline text-2xl font-bold text-primary">Session Attempt History</h2>
-                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
+              <div className="rounded-3xl bg-surface-card border border-border p-6">
+                <h2 className="mb-6 text-xl font-bold text-fg">Session Attempt History</h2>
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
                   {session.attempts.length === 0 ? (
-                    <p className="font-body text-on-surface-variant italic">No setup attempts recorded.</p>
+                    <p className="text-fg-mute italic">No setup attempts recorded.</p>
                   ) : (
                     session.attempts.map((attempt, index) => {
                       // Find the associated rep to get its ID for linking to frames
@@ -1064,23 +1077,23 @@ export default function SessionDetailPage() {
                       const hasReplay = attempt.status === 'success' && attemptFrames.length > 0;
 
                       return (
-                        <div key={attempt.id} className="flex flex-col gap-4 rounded-[2rem] bg-surface-container-lowest p-6 transition-all border border-outline-variant/5 hover:border-outline-variant/20">
+                        <div key={attempt.id} className="flex flex-col gap-3 rounded-2xl bg-surface-elev p-4 transition-all border border-border hover:border-flame/30">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                              <div className={`h-12 w-12 rounded-full flex items-center justify-center ${attempt.status === 'success' ? 'bg-secondary-container text-secondary' :
-                                attempt.status === 'canceled' ? 'bg-tertiary-fixed text-tertiary' : 'bg-error-container text-error'
+                              <div className={`h-10 w-10 rounded-full flex items-center justify-center ${attempt.status === 'success' ? 'bg-[#E8F5E9] text-[#2E7D32] dark:bg-[#1B3320] dark:text-[#81C784]' :
+                                attempt.status === 'canceled' ? 'bg-surface-elev-hover text-fg' : 'bg-[#FFE4E4] text-[#D32F2F] dark:bg-[#4A1010] dark:text-[#FFB4B4]'
                                 }`}>
-                                <span className="material-symbols-outlined">
+                                <span className="material-symbols-outlined text-xl">
                                   {attempt.status === 'success' ? 'check_circle' :
                                     attempt.status === 'canceled' ? 'cancel' : 'error'}
                                 </span>
                               </div>
                               <div>
-                                <p className="font-headline text-lg font-bold text-primary leading-tight">
+                                <p className="text-base font-bold text-fg leading-tight">
                                   {attempt.reason || (attempt.status === 'success' ? 'Movement Detected' : 'Unknown reason')}
                                 </p>
-                                <p className={`font-label text-[10px] uppercase font-bold tracking-widest ${attempt.status === 'success' ? 'text-secondary' :
-                                  attempt.status === 'canceled' ? 'text-outline' : 'text-error'
+                                <p className={`text-[10px] uppercase font-bold tracking-wider mt-0.5 ${attempt.status === 'success' ? 'text-[#2E7D32] dark:text-[#81C784]' :
+                                  attempt.status === 'canceled' ? 'text-fg-mute' : 'text-[#D32F2F] dark:text-[#FFB4B4]'
                                   }`}>
                                   {attempt.status}
                                 </p>
@@ -1090,17 +1103,17 @@ export default function SessionDetailPage() {
                               {hasReplay && (
                                 <button
                                   onClick={() => setActiveReplayId(activeReplayId === attempt.id ? null : attempt.id)}
-                                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
                                     activeReplayId === attempt.id 
-                                      ? 'bg-surface-container-high text-primary' 
-                                      : 'bg-cyan-500/10 text-cyan-500 hover:bg-cyan-500/20'
+                                      ? 'bg-surface-card text-flame border border-border' 
+                                      : 'bg-flame/10 text-flame hover:bg-flame/20'
                                   }`}
                                 >
                                   <span className="material-symbols-outlined text-sm">{activeReplayId === attempt.id ? 'close' : 'play_circle'}</span>
-                                  {activeReplayId === attempt.id ? 'Close Replay' : 'View Replay'}
+                                  {activeReplayId === attempt.id ? 'Close' : 'View Replay'}
                                 </button>
                               )}
-                              <span className="font-body text-xs text-outline">
+                              <span className="text-[10px] text-fg-mute font-medium">
                                 {formatTime(attempt.created_at)}
                               </span>
                             </div>
@@ -1113,22 +1126,44 @@ export default function SessionDetailPage() {
                               animate={{ opacity: 1, height: 'auto' }}
                               className="mt-4 pt-4 border-t border-outline-variant/10 flex justify-center overflow-hidden"
                             >
-                              <div className="w-full max-w-2xl bg-black rounded-3xl p-4 shadow-2xl">
-                                <SkeletonReplay 
-                                  exerciseName={session.exercise_name}
-                                  frames={attemptFrames} 
-                                  angles={angles.filter(a => a.rep_id === attempt.id)}
-                                  defaultShowAngles={globalShowAngles}
-                                  onToggleAngles={setGlobalShowAngles}
-                                  repTiming={{
-                                    start: associatedRep?.start_frame_time,
-                                    top: associatedRep?.top_frame_time,
-                                    end: associatedRep?.end_frame_time
-                                  }}
-                                  feedback={`Rep ${index + 1} - ${attempt.reason || (attempt.status === 'success' ? 'Completed' : 'Failed')}`}
-                                  width={800} 
-                                  height={450} 
-                                />
+                              <div className="w-full max-w-2xl bg-black rounded-3xl p-4 shadow-2xl relative">
+                                <div className="absolute top-6 right-6 z-30 flex bg-surface-card/80 backdrop-blur-md p-1 rounded-lg border border-white/10">
+                                  <button onClick={(e) => { e.stopPropagation(); setViewMode('2d'); }} className={`px-3 py-1 text-xs font-bold rounded-md ${viewMode === '2d' ? 'bg-flame text-white' : 'text-white/50 hover:text-white'}`}>2D</button>
+                                  <button onClick={(e) => { e.stopPropagation(); setViewMode('3d'); }} className={`px-3 py-1 text-xs font-bold rounded-md ${viewMode === '3d' ? 'bg-flame text-white' : 'text-white/50 hover:text-white'}`}>3D</button>
+                                </div>
+                                {viewMode === '2d' ? (
+                                  <SkeletonReplay 
+                                    exerciseName={session.exercise_name}
+                                    frames={attemptFrames} 
+                                    angles={angles.filter(a => a.rep_id === attempt.id)}
+                                    defaultShowAngles={globalShowAngles}
+                                    onToggleAngles={setGlobalShowAngles}
+                                    repTiming={{
+                                      start: associatedRep?.start_frame_time,
+                                      top: associatedRep?.top_frame_time,
+                                      end: associatedRep?.end_frame_time
+                                    }}
+                                    feedback={`Rep ${index + 1} - ${attempt.reason || (attempt.status === 'success' ? 'Completed' : 'Failed')}`}
+                                    width={800} 
+                                    height={450} 
+                                  />
+                                ) : (
+                                  <SkeletonReplay3D 
+                                    exerciseName={session.exercise_name}
+                                    frames={attemptFrames} 
+                                    angles={angles.filter(a => a.rep_id === attempt.id)}
+                                    defaultShowAngles={globalShowAngles}
+                                    onToggleAngles={setGlobalShowAngles}
+                                    repTiming={{
+                                      start: associatedRep?.start_frame_time,
+                                      top: associatedRep?.top_frame_time,
+                                      end: associatedRep?.end_frame_time
+                                    }}
+                                    feedback={`Rep ${index + 1} - ${attempt.reason || (attempt.status === 'success' ? 'Completed' : 'Failed')}`}
+                                    width={800} 
+                                    height={450} 
+                                  />
+                                )}
                               </div>
                             </motion.div>
                           )}
@@ -1142,15 +1177,19 @@ export default function SessionDetailPage() {
           )} 
           {activeTab === 'replay' && sessionReplay.activeAttempts.length > 0 && (
             <div className="lg:col-span-2 space-y-8">
-              <div className="w-full max-w-4xl mx-auto bg-surface-container rounded-3xl overflow-hidden shadow-2xl border border-outline-variant/20 flex flex-col">
-                <div className="p-4 bg-surface-container-high flex items-center justify-between border-b border-outline-variant/20">
+              <div className="w-full max-w-4xl mx-auto bg-surface-card rounded-3xl overflow-hidden shadow-2xl border border-border flex flex-col">
+                <div className="p-4 bg-surface-elev flex items-center justify-between border-b border-border">
                   <div className="flex items-center gap-4">
-                    <span className="font-headline font-bold text-lg text-primary">
+                    <span className="h3 text-fg">
                       Session Replay
                     </span>
-                    <span className="px-3 py-1 bg-cyan-500/10 text-cyan-600 rounded-full text-xs font-bold uppercase tracking-widest">
+                    <span className="px-3 py-1 bg-flame/10 text-flame rounded-full text-xs font-bold uppercase tracking-widest">
                       Rep {sessionReplay.currentAttemptIndex + 1} of {sessionReplay.activeAttempts.length}
                     </span>
+                  </div>
+                  <div className="flex bg-surface-card p-1 rounded-lg border border-border">
+                    <button onClick={() => setViewMode('2d')} className={`px-3 py-1 text-xs font-bold rounded-md ${viewMode === '2d' ? 'bg-flame text-white' : 'text-fg-mute hover:text-fg'}`}>2D</button>
+                    <button onClick={() => setViewMode('3d')} className={`px-3 py-1 text-xs font-bold rounded-md ${viewMode === '3d' ? 'bg-flame text-white' : 'text-fg-mute hover:text-fg'}`}>3D</button>
                   </div>
                 </div>
                 
@@ -1161,39 +1200,65 @@ export default function SessionDetailPage() {
                   {!sessionReplay.isComplete ? (
                     <>
 
-                      <div className="w-full h-full flex items-center justify-center">
-                        <SkeletonReplay
-                          exerciseName={session.exercise_name}
-                          frames={frames.filter(f => f.rep_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)}
-                          angles={angles.filter(a => a.rep_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)}
-                          defaultShowAngles={globalShowAngles}
-                          onToggleAngles={setGlobalShowAngles}
-                          repTiming={{
-                            start: session.reps?.find(r => r.attempt_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)?.start_frame_time,
-                            top: session.reps?.find(r => r.attempt_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)?.top_frame_time,
-                            end: session.reps?.find(r => r.attempt_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)?.end_frame_time
-                          }}
-                          feedback={`Rep ${sessionReplay.currentAttemptIndex + 1} - ${sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].reason || (sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].status === 'success' ? 'Completed' : 'Failed')}`}
-                          width={800}
-                          height={450}
-                          autoPlay={true}
-                          onComplete={playNextSessionRep}
-                          onNext={sessionReplay.currentAttemptIndex < sessionReplay.activeAttempts.length - 1 ? () => {
-                            setSessionReplay(prev => ({ ...prev, currentAttemptIndex: prev.currentAttemptIndex + 1 }));
-                          } : undefined}
-                          onPrev={sessionReplay.currentAttemptIndex > 0 ? () => {
-                            setSessionReplay(prev => ({ ...prev, currentAttemptIndex: prev.currentAttemptIndex - 1 }));
-                          } : undefined}
-                        />
+                      <div className="w-full h-full flex items-center justify-center relative">
+                        {viewMode === '2d' ? (
+                          <SkeletonReplay
+                            exerciseName={session.exercise_name}
+                            frames={frames.filter(f => f.rep_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)}
+                            angles={angles.filter(a => a.rep_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)}
+                            defaultShowAngles={globalShowAngles}
+                            onToggleAngles={setGlobalShowAngles}
+                            repTiming={{
+                              start: session.reps?.find(r => r.attempt_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)?.start_frame_time,
+                              top: session.reps?.find(r => r.attempt_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)?.top_frame_time,
+                              end: session.reps?.find(r => r.attempt_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)?.end_frame_time
+                            }}
+                            feedback={`Rep ${sessionReplay.currentAttemptIndex + 1} - ${sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].reason || (sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].status === 'success' ? 'Completed' : 'Failed')}`}
+                            width={800}
+                            height={450}
+                            autoPlay={true}
+                            onComplete={playNextSessionRep}
+                            onNext={sessionReplay.currentAttemptIndex < sessionReplay.activeAttempts.length - 1 ? () => {
+                              setSessionReplay(prev => ({ ...prev, currentAttemptIndex: prev.currentAttemptIndex + 1 }));
+                            } : undefined}
+                            onPrev={sessionReplay.currentAttemptIndex > 0 ? () => {
+                              setSessionReplay(prev => ({ ...prev, currentAttemptIndex: prev.currentAttemptIndex - 1 }));
+                            } : undefined}
+                          />
+                        ) : (
+                          <SkeletonReplay3D
+                            exerciseName={session.exercise_name}
+                            frames={frames.filter(f => f.rep_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)}
+                            angles={angles.filter(a => a.rep_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)}
+                            defaultShowAngles={globalShowAngles}
+                            onToggleAngles={setGlobalShowAngles}
+                            repTiming={{
+                              start: session.reps?.find(r => r.attempt_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)?.start_frame_time,
+                              top: session.reps?.find(r => r.attempt_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)?.top_frame_time,
+                              end: session.reps?.find(r => r.attempt_id === sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].id)?.end_frame_time
+                            }}
+                            feedback={`Rep ${sessionReplay.currentAttemptIndex + 1} - ${sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].reason || (sessionReplay.activeAttempts[sessionReplay.currentAttemptIndex].status === 'success' ? 'Completed' : 'Failed')}`}
+                            width={800}
+                            height={450}
+                            autoPlay={true}
+                            onComplete={playNextSessionRep}
+                            onNext={sessionReplay.currentAttemptIndex < sessionReplay.activeAttempts.length - 1 ? () => {
+                              setSessionReplay(prev => ({ ...prev, currentAttemptIndex: prev.currentAttemptIndex + 1 }));
+                            } : undefined}
+                            onPrev={sessionReplay.currentAttemptIndex > 0 ? () => {
+                              setSessionReplay(prev => ({ ...prev, currentAttemptIndex: prev.currentAttemptIndex - 1 }));
+                            } : undefined}
+                          />
+                        )}
                       </div>
                     </>
                   ) : (
                     <div className="flex flex-col items-center gap-6 py-20">
-                      <span className="material-symbols-outlined text-6xl text-cyan-500">task_alt</span>
-                      <h2 className="text-2xl font-headline font-bold text-white">Session Replay Complete</h2>
+                      <span className="material-symbols-outlined text-6xl text-flame">task_alt</span>
+                      <h2 className="h2 text-white">Session Replay Complete</h2>
                       <button 
                         onClick={() => setSessionReplay(prev => ({ ...prev, currentAttemptIndex: 0, isComplete: false }))}
-                        className="flex items-center gap-2 px-6 py-3 bg-cyan-500 text-black rounded-xl font-bold uppercase tracking-widest hover:bg-cyan-400 transition-colors"
+                        className="flex items-center gap-2 px-6 py-3 bg-flame text-white rounded-xl font-bold uppercase tracking-widest hover:bg-[#E56017] transition-colors"
                       >
                         <span className="material-symbols-outlined">replay</span>
                         Replay Sequence

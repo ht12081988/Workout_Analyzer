@@ -80,3 +80,14 @@ video-app-demo/
 video-presentation/
 docs/
 Docs/
+
+# Scratch & Backups
+scratch/
+adminworkbackup
+adminworkbackup/
+oldIndiaNIC Design System/
+* - Copy.prisma
+apps/web/test-db.js
+apps/web/migrateMetrics.js
+*.sql
+*Copy.env

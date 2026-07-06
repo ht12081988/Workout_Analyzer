@@ -558,9 +558,12 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
       const currentAnglesMap = toAngleMap(currentFrame.frame_number);
       const nextAnglesMap = toAngleMap(nextFrame.frame_number);
 
-      // Duration based on frame distance (assuming 30fps normalized)
-      let duration = (nextFrame.frame_number - currentFrame.frame_number) / 30;
-      duration = Math.min(Math.max(duration, 0.1), 3.0); // Clamp between 0.1s and 3.0s
+      // The camera feeds frames at exactly 30fps. The frame_number corresponds to this 30fps clock.
+      let duration = 0.033;
+      if (nextFrame.frame_number !== undefined && currentFrame.frame_number !== undefined) {
+         duration = (nextFrame.frame_number - currentFrame.frame_number) / 30;
+      }
+      duration = Math.min(Math.max(duration, 0.01), 3.0); // Clamp between 0.01s and 3.0s
 
       const startMs = currentFrame.timestamp ? new Date(currentFrame.timestamp).getTime() : 0;
       const endMs = nextFrame.timestamp ? new Date(nextFrame.timestamp).getTime() : 0;

@@ -33,6 +33,15 @@ app.get('/db-test', async (req, res) => {
   }
 });
 
+app.get('/metrics', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM master_metrics ORDER BY metric_name ASC');
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
 app.get('/exercises', async (req, res) => {
   try {
     const result = await query(`
@@ -48,7 +57,7 @@ app.get('/exercises', async (req, res) => {
         status,
         created_at
       FROM exercises
-      WHERE status = true
+      WHERE status = true AND (is_deleted = false OR is_deleted IS NULL)
       ORDER BY created_at ASC
     `);
 
@@ -452,6 +461,126 @@ app.get('/sessions/:id/angles', async (req, res) => {
     res.status(500).json({ status: 'error', message: (error as Error).message });
   }
 });
+
+// --- Admin API Routes ---
+app.get('/admin/exercises', async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT
+        id,
+        name,
+        description,
+        category,
+        subcategory,
+        image_path,
+        video_path,
+        camera_angle,
+        status,
+        created_at
+      FROM exercises
+      WHERE (is_deleted = false OR is_deleted IS NULL)
+      ORDER BY created_at ASC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.post('/admin/exercises', async (req, res) => {
+  const { name, description, dynamicProfile, category, subcategory, camera_angle, image_path, video_path } = req.body;
+  if (!name || !dynamicProfile) {
+    return res.status(400).json({ status: 'error', message: 'Name and dynamicProfile are required' });
+  }
+
+  try {
+    const exerciseResult = await query(
+      'INSERT INTO exercises (name, description, category, subcategory, camera_angle, image_path, video_path, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+      [name, description || '', category || 'AI Generated', subcategory || null, camera_angle || 'FRONT', image_path || null, video_path || null, true]
+    );
+    const exerciseId = exerciseResult.rows[0].id;
+
+    await query(
+      'INSERT INTO exercise_pose_rules (exercise_id, rule_name, rule_type, threshold_value, exercise_name, creator_type) VALUES ($1, $2, $3, $4, $5, $6)',
+      [exerciseId, 'DYNAMIC_PROFILE', 'custom', JSON.stringify(dynamicProfile), name, 'system']
+    );
+
+    res.json({ status: 'success', exercise_id: exerciseId });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.delete('/admin/exercises/:id', async (req, res) => {
+  try {
+    await query(
+      'UPDATE exercises SET is_deleted = true WHERE id = $1',
+      [req.params.id]
+    );
+    res.json({ status: 'success', message: 'Exercise deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.put('/admin/exercises/:id', async (req, res) => {
+  console.log("PUT /admin/exercises/:id invoked. Params:", req.params);
+  console.log("Body:", req.body);
+  const { name, description, dynamicProfile, category, subcategory, camera_angle, image_path, video_path } = req.body;
+  if (!dynamicProfile) {
+    return res.status(400).json({ status: 'error', message: 'dynamicProfile is required' });
+  }
+
+  try {
+    if (name !== undefined || description !== undefined) {
+      await query(
+        'UPDATE exercises SET name = COALESCE($1, name), description = COALESCE($2, description), category = COALESCE($3, category), subcategory = COALESCE($4, subcategory), camera_angle = COALESCE($5, camera_angle), image_path = COALESCE($6, image_path), video_path = COALESCE($7, video_path) WHERE id = $8',
+        [name, description, category, subcategory, camera_angle, image_path, video_path, req.params.id]
+      );
+    }
+
+    const existing = await query('SELECT id FROM exercise_pose_rules WHERE exercise_id = $1 AND rule_name = $2 AND creator_type = $3', [req.params.id, 'DYNAMIC_PROFILE', 'system']);
+    
+    if (existing.rows.length > 0) {
+      await query(
+        'UPDATE exercise_pose_rules SET threshold_value = $1 WHERE id = $2',
+        [JSON.stringify(dynamicProfile), existing.rows[0].id]
+      );
+    } else {
+      const exResult = await query('SELECT name FROM exercises WHERE id = $1', [req.params.id]);
+      if (exResult.rows.length > 0) {
+        await query(
+          'INSERT INTO exercise_pose_rules (exercise_id, rule_name, rule_type, threshold_value, exercise_name, creator_type) VALUES ($1, $2, $3, $4, $5, $6)',
+          [req.params.id, 'DYNAMIC_PROFILE', 'custom', JSON.stringify(dynamicProfile), exResult.rows[0].name, 'system']
+        );
+      }
+    }
+
+    res.json({ status: 'success' });
+  } catch (error) {
+    if ((error as any).code === '23505') { // Postgres unique_violation code
+      return res.status(400).json({ status: 'error', message: 'An exercise with this name already exists. Please choose a different name.' });
+    }
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.put('/admin/exercises/:id/status', async (req, res) => {
+  const { status } = req.body;
+  if (status === undefined) {
+    return res.status(400).json({ status: 'error', message: 'status is required' });
+  }
+  try {
+    await query(
+      'UPDATE exercises SET status = $1 WHERE id = $2',
+      [status, req.params.id]
+    );
+    res.json({ status: 'success' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
 // --- Trainer API Routes ---
 
 app.post('/trainer/login', async (req, res) => {
@@ -464,6 +593,23 @@ app.post('/trainer/login', async (req, res) => {
     }
     const trainer = result.rows[0];
     res.json({ status: 'success', trainer: { id: trainer.id, email: trainer.email, name: trainer.name } });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+// --- Admin API Routes ---
+
+app.post('/admin/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ status: 'error', message: 'Email and password required' });
+  try {
+    const result = await query('SELECT * FROM admins WHERE email = $1', [email]);
+    if (result.rows.length === 0 || result.rows[0].password !== password) {
+      return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
+    }
+    const admin = result.rows[0];
+    res.json({ status: 'success', admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role } });
   } catch (error) {
     res.status(500).json({ status: 'error', message: (error as Error).message });
   }
@@ -546,6 +692,30 @@ app.get('/trainer/:id/athletes/:customer_id/sessions', async (req, res) => {
     res.status(500).json({ status: 'error', message: (error as Error).message });
   }
 });
+app.get('/trainer/:id/sessions', async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT 
+        s.*,
+        COALESCE(NULLIF(s.total_reps, 0), (SELECT COUNT(*)::int FROM workout_attempts wa WHERE wa.session_id = s.id AND wa.status = 'success')) as total_reps,
+        COALESCE(NULLIF(s.average_accuracy, 0), (SELECT COALESCE(AVG(quality_score), 0)::numeric(5,2) FROM workout_rep_logs wr WHERE wr.session_id = s.id)) as average_accuracy,
+        COALESCE(NULLIF(s.total_duration_seconds, 0), EXTRACT(EPOCH FROM (COALESCE(s.end_time, (SELECT MAX(created_at) FROM workout_attempts wa WHERE wa.session_id = s.id), s.start_time) - s.start_time))::int) as total_duration_seconds,
+        e.name as exercise_name,
+        e.category as category,
+        c.name as athlete_name,
+        c.email as athlete_email,
+        (SELECT COUNT(*)::int FROM workout_attempts wa WHERE wa.session_id = s.id) as total_attempts
+      FROM workout_sessions s 
+      JOIN exercises e ON s.exercise_id = e.id 
+      JOIN customers c ON s.customer_id = c.id
+      WHERE s.recorded_mode = 'trainer' AND s.trainer_id = $1
+      ORDER BY s.start_time DESC
+    `, [req.params.id]);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
 
 app.get('/athletes/:id/trainers', async (req, res) => {
   try {
@@ -607,6 +777,170 @@ app.post('/athlete/rules', async (req, res) => {
   }
 });
 
+// --- Admin Trainer and Athlete Management API Routes ---
+app.get('/admin/trainers', async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT 
+        t.id, 
+        t.name, 
+        t.email, 
+        t.status, 
+        t.created_at,
+        (SELECT COUNT(*)::int FROM trainer_athletes ta WHERE ta.trainer_id = t.id AND ta.status = 'active') as active_athletes
+      FROM trainers t 
+      ORDER BY t.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.post('/admin/trainers', async (req, res) => {
+  const { name, email, password } = req.body;
+  try {
+    const result = await query('INSERT INTO trainers (name, email, password, status) VALUES ($1, $2, $3, $4) RETURNING id, name, email, status', [name, email, password || 'trainer123', true]);
+    res.json({ status: 'success', trainer: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.put('/admin/trainers/:id', async (req, res) => {
+  const { name, email, status } = req.body;
+  try {
+    await query('UPDATE trainers SET name = $1, email = $2, status = $3 WHERE id = $4', [name, email, status, req.params.id]);
+    res.json({ status: 'success' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.get('/admin/athletes', async (req, res) => {
+  try {
+    const result = await query('SELECT id, name, email, status, created_at, last_login FROM customers ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.post('/admin/athletes', async (req, res) => {
+  const { name, email, password } = req.body;
+  try {
+    const result = await query('INSERT INTO customers (name, email, password, status) VALUES ($1, $2, $3, $4) RETURNING id, name, email, status', [name, email, password || 'athlete123', true]);
+    res.json({ status: 'success', athlete: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.put('/admin/athletes/:id', async (req, res) => {
+  const { name, email, status } = req.body;
+  try {
+    await query('UPDATE customers SET name = $1, email = $2, status = $3 WHERE id = $4', [name, email, status, req.params.id]);
+    res.json({ status: 'success' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+
+
+
+app.put('/admin/tracking-config', async (req, res) => {
+  const { model_type, ui_smoothing, engine_smoothing } = req.body;
+  try {
+    const existing = await query("SELECT id FROM tracking_configs WHERE id = 'global'");
+    if (existing.rows.length === 0) {
+      await query(
+        "INSERT INTO tracking_configs (id, model_type, ui_smoothing, engine_smoothing) VALUES ('global', $1, $2, $3)",
+        [model_type, ui_smoothing, engine_smoothing]
+      );
+    } else {
+      await query(
+        "UPDATE tracking_configs SET model_type = $1, ui_smoothing = $2, engine_smoothing = $3 WHERE id = 'global'",
+        [model_type, ui_smoothing, engine_smoothing]
+      );
+    }
+    res.json({ status: 'success' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.put('/admin/voice-config', async (req, res) => {
+  const { min_interval_ms, phrase_cooldown_ms, reinforcement_probability, speech_rate, speech_pitch, positive_reinforcements } = req.body;
+  try {
+    const existing = await query("SELECT id FROM voice_configs WHERE id = 'global'");
+    if (existing.rows.length === 0) {
+      await query(
+        "INSERT INTO voice_configs (id, min_interval_ms, phrase_cooldown_ms, reinforcement_probability, speech_rate, speech_pitch, positive_reinforcements) VALUES ('global', $1, $2, $3, $4, $5, $6)",
+        [min_interval_ms, phrase_cooldown_ms, reinforcement_probability, speech_rate, speech_pitch, positive_reinforcements]
+      );
+    } else {
+      await query(
+        "UPDATE voice_configs SET min_interval_ms = $1, phrase_cooldown_ms = $2, reinforcement_probability = $3, speech_rate = $4, speech_pitch = $5, positive_reinforcements = $6 WHERE id = 'global'",
+        [min_interval_ms, phrase_cooldown_ms, reinforcement_probability, speech_rate, speech_pitch, positive_reinforcements]
+      );
+    }
+    res.json({ status: 'success' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+// --- Failure Guidance Admin Routes ---
+
+app.get('/admin/failure-guidance', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM voice_failure_guidance ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.post('/admin/failure-guidance', async (req, res) => {
+  const { failure_keyword, spoken_advice, is_active } = req.body;
+  try {
+    const result = await query(
+      'INSERT INTO voice_failure_guidance (failure_keyword, spoken_advice, is_active) VALUES ($1, $2, $3) RETURNING *',
+      [failure_keyword, spoken_advice, is_active !== undefined ? is_active : true]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.put('/admin/failure-guidance/:id', async (req, res) => {
+  const { id } = req.params;
+  const { failure_keyword, spoken_advice, is_active } = req.body;
+  try {
+    const result = await query(
+      'UPDATE voice_failure_guidance SET failure_keyword = $1, spoken_advice = $2, is_active = $3 WHERE id = $4 RETURNING *',
+      [failure_keyword, spoken_advice, is_active, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+app.delete('/admin/failure-guidance/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await query('DELETE FROM voice_failure_guidance WHERE id = $1', [id]);
+    res.json({ status: 'success' });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
 
 if (process.env.NODE_ENV !== 'production') {
   app.listen(port, '0.0.0.0', async () => {

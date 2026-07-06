@@ -22,6 +22,7 @@ export const RULE_SECTION_DESCRIPTIONS: Record<string, string> = {
 };
 
 export const RULE_PARAM_CONFIG: Record<string, ParamConfig> = {
+
   // Angle / Depth
   target_angle: { min: 45, max: 160, step: 1, direction: 'desc', description: "The maximum angle the knee must bend to register a successful repetition.", imageUrl: "/guides/squat_depth.png" },
   stand_up_tolerance: { min: 140, max: 180, step: 1, direction: 'asc', description: "The knee angle required to be considered fully returned to the standing position.", imageUrl: "/guides/stand_up.png" },

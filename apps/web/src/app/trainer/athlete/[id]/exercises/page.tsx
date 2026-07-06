@@ -27,6 +27,23 @@ export default function ExercisesPage() {
   const [loadingEx, setLoadingEx] = useState(true);
   const [loadingRules, setLoadingRules] = useState(false);
   const [activeRuleIdx, setActiveRuleIdx] = useState(0);
+
+  const [metricsLibrary, setMetricsLibrary] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/metrics')
+      .then(r => r.json())
+      .then(data => setMetricsLibrary(data))
+      .catch(err => console.error(err));
+  }, []);
+
+  const getDynamicConfig = (key: string) => {
+    const dbMetric = metricsLibrary.find(m => m.metric_key === key);
+    if (dbMetric) {
+      return { min: parseFloat(dbMetric.min_val), max: parseFloat(dbMetric.max_val), step: parseFloat(dbMetric.step_val), direction: dbMetric.direction, description: dbMetric.description };
+    }
+    return getParamConfig(key);
+  };
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
@@ -170,30 +187,30 @@ export default function ExercisesPage() {
     }
   };
 
-  if (loadingEx) return <div className="p-8 text-on-surface-variant font-body animate-pulse">Loading exercises...</div>;
+  if (loadingEx) return <div className="p-8 text-fg-mute font-body animate-pulse">Loading exercises...</div>;
 
   return (
-    <div className="w-full h-full flex flex-col p-10 bg-surface-container-low/50">
-      <div className="flex gap-8 h-[calc(100vh-16rem)] min-h-[600px]">
+    <div className="w-full h-full flex flex-col p-6 bg-bg">
+      <div className="flex gap-6 h-[calc(100vh-16rem)] min-h-[600px]">
       {/* Left Sidebar: Exercises List */}
-      <div className="w-1/5 min-w-[200px] bg-surface-container-lowest rounded-3xl shadow-sm border border-outline/5 overflow-hidden flex flex-col">
-        <div className="p-6 border-b border-outline/10 shrink-0">
-          <h2 className="text-xl font-bold font-headline text-on-surface">Exercises</h2>
-          <p className="text-sm text-on-surface-variant mt-1 font-body">Select an exercise to configure pose rules.</p>
+      <div className="w-1/5 min-w-[200px] bg-surface rounded-2xl shadow-card border border-border overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-border shrink-0">
+          <h2 className="h3 text-fg">Exercises</h2>
+          <p className="text-sm text-fg-mute mt-1 font-body">Select an exercise to configure pose rules.</p>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {exercises.map(ex => (
             <button
               key={ex.id}
               onClick={() => handleExerciseChange(ex)}
-              className={`w-full text-left px-5 py-4 rounded-2xl transition-all font-headline font-bold text-sm ${
+              className={`w-full text-left px-5 py-4 transition-all font-bold text-sm border border-l-[3px] rounded-xl ${
                 selectedExercise?.id === ex.id 
-                  ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm' 
-                  : 'bg-transparent text-on-surface hover:bg-surface-container-high border border-transparent hover:border-outline/5'
+                  ? 'border-border border-l-flame bg-gradient-to-r from-flame/10 to-transparent text-flame shadow-sm' 
+                  : 'border-transparent text-fg-mute hover:bg-surface-elev hover:text-fg'
               }`}
             >
               {ex.name}
-              <div className="text-xs font-body font-normal text-on-surface-variant mt-1">
+              <div className="text-xs font-body font-normal text-fg-mute mt-1">
                 {ex.category}
               </div>
             </button>
@@ -202,13 +219,13 @@ export default function ExercisesPage() {
       </div>
 
       {/* Right Content: Rule Editor */}
-      <div className="flex-1 bg-surface-container-lowest rounded-3xl shadow-sm border border-outline/5 overflow-hidden flex flex-col">
+      <div className="flex-1 bg-surface-card rounded-2xl shadow-card border border-border overflow-hidden flex flex-col">
         {selectedExercise ? (
           <>
-            <div className="p-6 border-b border-outline/10 shrink-0 flex justify-between items-center bg-surface-container-low/30">
+            <div className="p-6 border-b border-border shrink-0 flex justify-between items-center bg-surface/30">
               <div>
-                <h2 className="text-xl font-bold font-headline text-on-surface">{selectedExercise.name} Rules</h2>
-                <p className="text-sm text-on-surface-variant mt-1 font-body">
+                <h2 className="h3 text-fg">{selectedExercise.name} Rules</h2>
+                <p className="text-sm text-fg-mute mt-1 font-body">
                   Configure form-checking parameters specifically for this athlete.
                 </p>
               </div>
@@ -218,7 +235,7 @@ export default function ExercisesPage() {
                     <button
                       onClick={handleLoadDefaults}
                       disabled={saving}
-                      className="px-4 py-2.5 bg-surface-container-highest text-on-surface rounded-full font-headline font-bold text-sm hover:bg-surface-variant transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70"
+                      className="px-4 py-2.5 bg-surface-elev text-fg rounded-lg font-bold text-sm hover:bg-surface transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70 border border-border"
                     >
                       <span className="material-symbols-outlined text-[18px]">restore</span>
                       Default
@@ -226,7 +243,7 @@ export default function ExercisesPage() {
                     <button
                       onClick={handleSaveAllRules}
                       disabled={saving}
-                      className="px-6 py-2.5 bg-primary text-on-primary rounded-full font-headline font-bold text-sm hover:scale-[1.02] active:scale-95 transition-transform disabled:opacity-70 disabled:hover:scale-100 flex items-center gap-2 shadow-md"
+                      className="px-6 py-2.5 bg-flame text-on-dark rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-95 transition-transform disabled:opacity-70 disabled:hover:scale-100 flex items-center gap-2 shadow-flame"
                     >
                       <span className="material-symbols-outlined text-[18px]">save</span>
                       {saving ? "Saving..." : "Save"}
@@ -236,25 +253,25 @@ export default function ExercisesPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 bg-surface-container-lowest">
+            <div className="flex-1 overflow-y-auto p-8 bg-surface-card">
               {loadingRules ? (
-                <div className="animate-pulse text-on-surface-variant">Loading rules...</div>
+                <div className="animate-pulse text-fg-mute">Loading rules...</div>
               ) : rules.length === 0 ? (
-                <div className="text-on-surface-variant text-center mt-12 bg-surface-variant/30 py-8 rounded-2xl border border-outline/5 border-dashed">
+                <div className="text-fg-mute text-center mt-12 bg-surface/30 py-8 rounded-2xl border border-border border-dashed">
                   No pose rules defined for this exercise.
                 </div>
               ) : (
                 <div className="space-y-6">
                   {/* Tab Navigation */}
-                  <div className="inline-flex items-center bg-surface-container-high/50 rounded-full p-1 mb-6 overflow-x-auto max-w-full">
+                  <div className="inline-flex items-center bg-surface-elev rounded-lg p-1 mb-6 overflow-x-auto max-w-full border border-border">
                     {rules.map((r, i) => (
                       <button
                         key={i}
                         onClick={() => setActiveRuleIdx(i)}
-                        className={`px-6 py-2.5 font-headline font-bold text-sm whitespace-nowrap rounded-full transition-all flex items-center gap-2 ${
+                        className={`px-6 py-2.5 kicker whitespace-nowrap rounded-md transition-all flex items-center gap-2 ${
                           activeRuleIdx === i 
-                            ? 'bg-surface-container-lowest text-primary shadow-sm'
-                            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30'
+                            ? 'bg-surface-card text-flame shadow-sm'
+                            : 'text-fg-mute hover:text-fg hover:bg-surface/30'
                         }`}
                       >
                         <span className="material-symbols-outlined text-[18px]">
@@ -267,14 +284,14 @@ export default function ExercisesPage() {
 
                   {/* Active Rule Editor */}
                   {rules[activeRuleIdx] && (
-                    <div className="bg-surface-container-low rounded-2xl p-6 border border-outline/10 shadow-sm transition-all">
-                      <div className="flex justify-between items-start mb-6 border-b border-outline/5 pb-4">
+                    <div className="bg-bg rounded-2xl p-6 border border-border shadow-sm transition-all">
+                      <div className="flex justify-between items-start mb-6 border-b border-border pb-4">
                         <div>
-                          <p className="text-sm font-body text-on-surface-variant leading-relaxed">
+                          <p className="text-sm font-body text-fg-mute leading-relaxed">
                             {RULE_SECTION_DESCRIPTIONS[rules[activeRuleIdx].rule_name] || "Configure specific parameter thresholds for this rule."}
                           </p>
                           <div className="flex gap-2 mt-3">
-                             <span className="text-[10px] font-label font-bold uppercase tracking-wider bg-surface-container-highest px-2 py-1 rounded text-on-surface-variant">
+                             <span className="kicker bg-surface-elev px-2 py-1 rounded text-fg-mute border border-border">
                                {rules[activeRuleIdx].rule_type}
                              </span>
                           </div>
@@ -284,27 +301,85 @@ export default function ExercisesPage() {
                       <div className="flex flex-col gap-6">
                         {/* Threshold Settings */}
                         <div className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {rules[activeRuleIdx].threshold_value && Object.keys(rules[activeRuleIdx].threshold_value)
-                              .filter(key => key !== 'penalty')
-                              .map(key => {
-                              const config = getParamConfig(key);
-                              return (
-                                <DifficultySlider
-                                  key={key}
-                                  label={key}
-                                  value={parseFloat(rules[activeRuleIdx].threshold_value[key])}
-                                  min={config.min}
-                                  max={config.max}
-                                  step={config.step}
-                                  direction={config.direction}
-                                  description={config.description}
-                                  imageUrl={config.imageUrl}
-                                  onChange={(newVal) => handleRuleChange(activeRuleIdx, `threshold_${key}`, newVal)}
-                                />
-                              );
-                            })}
-                          </div>
+                          {rules[activeRuleIdx].rule_name === 'DYNAMIC_PROFILE' ? (
+                            <div className="flex flex-col gap-6">
+                              {rules[activeRuleIdx].threshold_value?.phases?.map((phase: any, phaseIdx: number) => (
+                                <div key={phaseIdx} className="bg-surface border border-border rounded-2xl p-6">
+                                  <h3 className="h3 text-fg mb-4">{phase.name}</h3>
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {phase.entryConditions?.map((cond: any, condIdx: number) => {
+                                      const config = getDynamicConfig(cond.metric);
+                                      return (
+                                        <DifficultySlider
+                                          key={`entry-${condIdx}`}
+                                          label={`Entry: ${cond.metric.replace(/_/g, ' ')}`}
+                                          value={Number(cond.value)}
+                                          min={config.min}
+                                          max={config.max}
+                                          step={config.step}
+                                          direction={config.direction}
+                                          description={`${cond.operator} ${cond.value}`}
+                                          onChange={(newVal) => {
+                                            const updatedRules = [...rules];
+                                            const newProfile = JSON.parse(JSON.stringify(updatedRules[activeRuleIdx].threshold_value));
+                                            newProfile.phases[phaseIdx].entryConditions[condIdx].value = newVal;
+                                            updatedRules[activeRuleIdx].threshold_value = newProfile;
+                                            setRules(updatedRules);
+                                            setIsDirty(true);
+                                          }}
+                                        />
+                                      );
+                                    })}
+                                    {phase.formChecks?.map((check: any, checkIdx: number) => {
+                                      const config = getDynamicConfig(check.metric);
+                                      return (
+                                        <DifficultySlider
+                                          key={`check-${checkIdx}`}
+                                          label={`Form: ${check.metric.replace(/_/g, ' ')}`}
+                                          value={Number(check.value)}
+                                          min={config.min}
+                                          max={config.max}
+                                          step={config.step}
+                                          direction={config.direction}
+                                          description={`${check.operator} ${check.value}`}
+                                          onChange={(newVal) => {
+                                            const updatedRules = [...rules];
+                                            const newProfile = JSON.parse(JSON.stringify(updatedRules[activeRuleIdx].threshold_value));
+                                            newProfile.phases[phaseIdx].formChecks[checkIdx].value = newVal;
+                                            updatedRules[activeRuleIdx].threshold_value = newProfile;
+                                            setRules(updatedRules);
+                                            setIsDirty(true);
+                                          }}
+                                        />
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {rules[activeRuleIdx].threshold_value && Object.keys(rules[activeRuleIdx].threshold_value)
+                                .filter(key => key !== 'penalty')
+                                .map(key => {
+                                const config = getDynamicConfig(key);
+                                return (
+                                  <DifficultySlider
+                                    key={key}
+                                    label={key}
+                                    value={parseFloat(rules[activeRuleIdx].threshold_value[key])}
+                                    min={config.min}
+                                    max={config.max}
+                                    step={config.step}
+                                    direction={config.direction}
+                                    description={config.description}
+                                    imageUrl={config.imageUrl}
+                                    onChange={(newVal) => handleRuleChange(activeRuleIdx, `threshold_${key}`, newVal)}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -314,7 +389,7 @@ export default function ExercisesPage() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-on-surface-variant font-body p-8 text-center bg-surface-container-lowest">
+          <div className="flex-1 flex items-center justify-center text-fg-mute font-body p-8 text-center bg-surface-card">
             Select an exercise from the left to configure rules for this athlete.
           </div>
         )}
@@ -322,9 +397,9 @@ export default function ExercisesPage() {
 
       {showExitModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-surface-container-lowest p-6 sm:p-8 rounded-[2rem] max-w-sm w-full shadow-2xl border border-outline/10">
-            <h3 className="font-headline text-xl font-bold text-on-surface mb-2">Unsaved Changes</h3>
-            <p className="font-body text-on-surface-variant mb-8 leading-relaxed">
+          <div className="bg-surface-card p-6 sm:p-8 rounded-2xl max-w-sm w-full shadow-2xl border border-border">
+            <h3 className="h3 text-fg mb-2">Unsaved Changes</h3>
+            <p className="font-body text-fg-mute mb-8 leading-relaxed">
               You have unsaved changes. Would you like to save them before switching exercises?
             </p>
             <div className="flex flex-col gap-3">
@@ -336,7 +411,7 @@ export default function ExercisesPage() {
                   setIsDirty(false);
                   setShowExitModal(false);
                 }}
-                className="w-full py-3 bg-primary text-on-primary rounded-xl font-bold hover:scale-[1.02] active:scale-95 transition-transform shadow-md"
+                className="w-full py-3 bg-flame text-on-dark rounded-lg font-bold hover:scale-[1.02] active:scale-95 transition-transform shadow-flame"
               >
                 Yes, Save & Switch
               </button>
@@ -347,13 +422,13 @@ export default function ExercisesPage() {
                   setIsDirty(false);
                   setShowExitModal(false);
                 }}
-                className="w-full py-3 bg-error/10 text-error rounded-xl font-bold hover:bg-error/20 transition-colors"
+                className="w-full py-3 bg-err/10 text-err rounded-lg font-bold hover:bg-err/20 transition-colors"
               >
                 No, Switch Without Saving
               </button>
               <button
                 onClick={() => setShowExitModal(false)}
-                className="w-full py-3 bg-surface-variant/50 text-on-surface-variant rounded-xl font-bold hover:bg-surface-variant transition-colors mt-2"
+                className="w-full py-3 bg-surface-elev text-fg-mute rounded-lg font-bold hover:bg-surface transition-colors mt-2"
               >
                 Cancel
               </button>

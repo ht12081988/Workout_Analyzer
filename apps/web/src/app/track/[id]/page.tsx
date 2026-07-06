@@ -175,8 +175,12 @@ export default function TrackPage() {
       }
     };
 
-    fetchExerciseDetails();
-    fetchRules();
+    const initializeEngine = async () => {
+      await fetchExerciseDetails();
+      await fetchRules();
+    };
+
+    initializeEngine();
     fetchTrackingConfig();
     fetchVoiceConfig();
   }, [exerciseId, engine, speech]);

@@ -37,6 +37,7 @@ export function DashboardScreen({ navigation }: any) {
   const [error, setError] = useState('');
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [mode, setMode] = useState<'self' | 'trainer'>('self');
 
   useEffect(() => {
     fetchExercises();
@@ -79,27 +80,19 @@ export function DashboardScreen({ navigation }: any) {
   };
 
   const handleStartPractice = (exercise: Exercise) => {
-    if (trainers.length === 0) {
-      // Default to self mode immediately if no trainers
+    if (mode === 'trainer' && trainers.length > 0) {
+      navigation.navigate('Tracker', {
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        mode: 'trainer',
+        trainerId: trainers[0].id
+      });
+    } else {
       navigation.navigate('Tracker', { 
         exerciseId: exercise.id, 
         exerciseName: exercise.name,
         mode: 'self'
       });
-    } else {
-      setSelectedExercise(exercise);
-    }
-  };
-
-  const startSession = (mode: 'self' | 'trainer', trainerId?: string) => {
-    if (selectedExercise) {
-      navigation.navigate('Tracker', {
-        exerciseId: selectedExercise.id,
-        exerciseName: selectedExercise.name,
-        mode,
-        trainerId
-      });
-      setSelectedExercise(null);
     }
   };
 
@@ -129,6 +122,23 @@ export function DashboardScreen({ navigation }: any) {
           <Text style={styles.headerTitle}>Refine Your Form.</Text>
         </View>
       </View>
+
+      {trainers.length > 0 && (
+        <View style={styles.modeToggleContainer}>
+          <TouchableOpacity 
+            style={[styles.modeToggleBtn, mode === 'self' && styles.modeToggleBtnActive]}
+            onPress={() => setMode('self')}
+          >
+            <Text style={[styles.modeToggleText, mode === 'self' && styles.modeToggleTextActive]}>Self Mode</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.modeToggleBtn, mode === 'trainer' && styles.modeToggleBtnActive]}
+            onPress={() => setMode('trainer')}
+          >
+            <Text style={[styles.modeToggleText, mode === 'trainer' && styles.modeToggleTextActive]}>Trainer Mode</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.center}>
@@ -178,34 +188,6 @@ export function DashboardScreen({ navigation }: any) {
         </View>
       </View>
 
-      {/* Trainer Selection Modal */}
-      <Modal visible={!!selectedExercise} transparent animationType="slide" onRequestClose={() => setSelectedExercise(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Practice Mode</Text>
-            <Text style={styles.modalDesc}>You have active trainers. Are you practicing solo or completing homework?</Text>
-
-            <TouchableOpacity style={styles.modalOptionPrimary} onPress={() => startSession('self')}>
-              <MaterialIcons name="person" size={24} color={Colors.onPrimary} style={{ marginRight: 8 }} />
-              <Text style={styles.modalOptionPrimaryText}>Solo Practice</Text>
-            </TouchableOpacity>
-
-            <View style={styles.modalDivider} />
-
-            {trainers.map(t => (
-              <TouchableOpacity key={t.id} style={styles.modalOptionSecondary} onPress={() => startSession('trainer', t.id)}>
-                <MaterialIcons name="sports" size={24} color={Colors.primary} style={{ marginRight: 8 }} />
-                <Text style={styles.modalOptionSecondaryText}>{t.name}'s Homework</Text>
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity style={styles.modalCancel} onPress={() => setSelectedExercise(null)}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
     </SafeAreaView>
   );
 }
@@ -232,6 +214,36 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     color: Colors.primary,
+  },
+  modeToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surfaceVariant,
+    marginHorizontal: Spacing.xl,
+    marginBottom: Spacing.md,
+    borderRadius: Radii.round,
+    padding: 4,
+  },
+  modeToggleBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+    borderRadius: Radii.round,
+  },
+  modeToggleBtnActive: {
+    backgroundColor: Colors.primary,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  modeToggleText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: Colors.onSurfaceVariant,
+  },
+  modeToggleTextActive: {
+    color: Colors.onPrimary,
   },
 
   center: {

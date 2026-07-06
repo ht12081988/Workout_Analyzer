@@ -14,6 +14,7 @@ model customers {
   password         String
   created_at       DateTime?          @default(now()) @db.Timestamptz(6)
   last_login       DateTime?          @db.Timestamptz(6)
+  status           Boolean?           @default(true)
   trainer_athletes trainer_athletes[]
   workout_sessions workout_sessions[]
 }
@@ -43,6 +44,7 @@ model exercises {
   status              Boolean?              @default(true)
   created_at          DateTime?             @default(now()) @db.Timestamptz(6)
   camera_angle        String?               @db.VarChar(50)
+  is_deleted          Boolean?              @default(false)
   exercise_pose_rules exercise_pose_rules[]
   voice_cues          voice_cues[]
   workout_attempts    workout_attempts[]
@@ -180,6 +182,7 @@ model trainers {
   name             String?
   password         String
   created_at       DateTime?          @default(now()) @db.Timestamptz(6)
+  status           Boolean?           @default(true)
   trainer_athletes trainer_athletes[]
 }
 
@@ -191,4 +194,23 @@ model trainer_athletes {
   created_at  DateTime? @default(now()) @db.Timestamptz(6)
   customers   customers @relation(fields: [customer_id], references: [id], onDelete: Cascade)
   trainers    trainers  @relation(fields: [trainer_id], references: [id], onDelete: Cascade)
+}
+
+model admins {
+  id         Int       @id @default(autoincrement())
+  email      String    @unique @db.VarChar(255)
+  password   String    @db.VarChar(255)
+  name       String    @db.VarChar(255)
+  role       String?   @default("superadmin") @db.VarChar(50)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model master_metrics {
+  metric_key  String  @id @db.VarChar(100)
+  metric_name String  @db.VarChar(255)
+  description String?
+  min_val     Decimal @db.Decimal
+  max_val     Decimal @db.Decimal
+  step_val    Decimal @db.Decimal
+  direction   String  @db.VarChar(10)
 }

@@ -31,6 +31,23 @@ export default function AthleteConfigurationPage() {
   const [isDirty, setIsDirty] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
 
+  const [metricsLibrary, setMetricsLibrary] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/metrics')
+      .then(r => r.json())
+      .then(data => setMetricsLibrary(data))
+      .catch(err => console.error(err));
+  }, []);
+
+  const getDynamicConfig = (key: string) => {
+    const dbMetric = metricsLibrary.find(m => m.metric_key === key);
+    if (dbMetric) {
+      return { min: parseFloat(dbMetric.min_val), max: parseFloat(dbMetric.max_val), step: parseFloat(dbMetric.step_val), direction: dbMetric.direction, description: dbMetric.description };
+    }
+    return getParamConfig(key);
+  };
+
   // 1. Fetch Exercises to find the selected one
   useEffect(() => {
     fetch('http://localhost:5002/exercises')
@@ -166,35 +183,35 @@ export default function AthleteConfigurationPage() {
   };
 
   if (loadingEx) return (
-    <div className="flex min-h-screen items-center justify-center bg-surface">
-      <div className="animate-pulse text-primary font-headline text-xl">Loading exercises...</div>
+    <div className="flex min-h-screen items-center justify-center bg-bg">
+      <div className="animate-pulse text-flame font-headline text-xl">Loading exercises...</div>
     </div>
   );
 
   return (
-    <main className="min-h-screen bg-surface pb-28 text-on-surface">
-      <nav className="fixed left-0 top-0 z-50 flex h-16 sm:h-20 w-full items-center justify-between bg-surface/30 px-4 shadow-sm backdrop-blur-xl md:px-8 border-b border-outline-variant/10">
+    <main className="min-h-screen bg-bg pb-28 text-fg">
+      <nav className="fixed left-0 top-0 z-50 flex h-16 sm:h-20 w-full items-center justify-between bg-surface-card/60 px-4 shadow-sm backdrop-blur-xl md:px-8 border-b border-border">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 max-w-[35%] xs:max-w-[45%] mr-2">
           <button
             onClick={handleBackClick}
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-surface-container-high text-primary hover:bg-primary hover:text-on-primary transition-all"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-surface-elev border border-border text-flame hover:bg-surface-elev-hover transition-all"
             title="Back to Dashboard"
             type="button"
           >
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <span className="hidden font-headline text-xl font-black italic text-primary lg:block">VisionFiT</span>
+          <span className="hidden h3 italic text-fg lg:block">VisionFiT</span>
           
-          <div className="h-8 w-[1px] bg-outline-variant/20 mx-2 hidden lg:block" />
+          <div className="h-8 w-[1px] bg-border mx-2 hidden lg:block" />
           
           {selectedExercise && (
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="flex h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary hidden xs:flex">
+              <div className="flex h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0 items-center justify-center rounded-xl bg-surface-elev border border-border text-flame hidden xs:flex">
                 <span className="material-symbols-outlined text-lg sm:text-xl">tune</span>
               </div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  <h2 className="font-headline text-xs sm:text-sm font-black text-primary leading-none truncate">
+                  <h2 className="h3 !text-xs sm:!text-sm text-fg leading-none truncate">
                     {selectedExercise.name} Rules
                   </h2>
                 </div>
@@ -205,15 +222,15 @@ export default function AthleteConfigurationPage() {
 
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden xl:flex items-center justify-center max-w-[50%] overflow-hidden">
           {rules.length > 0 && (
-            <div className="flex items-center gap-1 bg-surface-container-high/50 rounded-full p-1 border border-outline/5 shadow-inner overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1 bg-surface-elev rounded-full p-1 border border-border shadow-inner overflow-x-auto no-scrollbar">
               {rules.map((r, i) => (
                 <button
                   key={i}
                   onClick={() => setActiveRuleIdx(i)}
                   className={`px-4 py-2 font-headline font-bold text-[11px] rounded-full transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
                     activeRuleIdx === i 
-                      ? 'bg-surface-container-lowest text-primary shadow-sm border border-outline-variant/10'
-                      : 'text-on-surface-variant hover:text-on-surface'
+                      ? 'bg-surface-card text-flame shadow-md border border-border'
+                      : 'text-fg-mute hover:text-fg'
                   }`}
                   type="button"
                 >
@@ -233,7 +250,7 @@ export default function AthleteConfigurationPage() {
               <button
                 onClick={handleLoadDefaults}
                 disabled={saving}
-                className="px-4 md:px-6 py-2.5 bg-surface-container-highest text-on-surface rounded-full font-headline font-bold text-sm hover:bg-surface-variant transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70"
+                className="px-4 md:px-6 py-2.5 bg-surface-elev border border-border text-fg rounded-full font-headline font-bold text-sm hover:bg-surface-elev-hover transition-colors flex items-center gap-2 shadow-sm disabled:opacity-70"
                 type="button"
               >
                 <span className="material-symbols-outlined text-[18px]">restore</span>
@@ -242,7 +259,7 @@ export default function AthleteConfigurationPage() {
               <button
                 onClick={handleSaveAllRules}
                 disabled={saving}
-                className="px-4 md:px-6 py-2.5 bg-primary text-on-primary rounded-full font-headline font-bold text-sm hover:scale-[1.02] active:scale-95 transition-transform disabled:opacity-70 disabled:hover:scale-100 flex items-center gap-2 shadow-md"
+                className="px-4 md:px-6 py-2.5 bg-flame text-on-dark rounded-full font-headline font-bold text-sm hover:scale-[1.02] active:scale-95 transition-transform disabled:opacity-70 disabled:hover:scale-100 flex items-center gap-2 shadow-flame"
                 type="button"
               >
                 <span className="material-symbols-outlined text-[18px]">save</span>
@@ -254,27 +271,27 @@ export default function AthleteConfigurationPage() {
       </nav>
 
       <section className="mx-auto max-w-5xl px-4 pb-8 pt-20 md:px-8 md:pt-24">
-        <div className="bg-surface-container-lowest rounded-3xl shadow-sm border border-outline/5 overflow-hidden flex flex-col">
+        <div className="bg-surface-card rounded-[24px] shadow-card border border-border overflow-hidden flex flex-col">
           {selectedExercise ? (
             <div className="p-4 md:p-6">
               {loadingRules ? (
-                <div className="animate-pulse text-on-surface-variant text-center py-12">Loading rules...</div>
+                <div className="animate-pulse text-fg-mute text-center py-12">Loading rules...</div>
               ) : rules.length === 0 ? (
-                <div className="text-on-surface-variant text-center my-12 bg-surface-variant/30 py-12 rounded-2xl border border-outline/5 border-dashed">
+                <div className="text-fg-mute text-center my-12 bg-surface-elev py-12 rounded-2xl border border-border border-dashed">
                   No pose rules defined for this exercise.
                 </div>
               ) : (
                 <div className="space-y-4">
                   {/* Tab Navigation (Mobile & Tablet) */}
-                  <div className="flex xl:hidden flex-wrap items-center gap-2 bg-surface-container-high/50 rounded-2xl p-2 mb-4">
+                  <div className="flex xl:hidden flex-wrap items-center gap-2 bg-surface-elev rounded-2xl p-2 mb-4 border border-border">
                     {rules.map((r, i) => (
                       <button
                         key={i}
                         onClick={() => setActiveRuleIdx(i)}
                         className={`px-6 py-3 font-headline font-bold text-sm rounded-xl transition-all flex items-center gap-2 flex-grow sm:flex-grow-0 justify-center ${
                           activeRuleIdx === i 
-                            ? 'bg-surface-container-lowest text-primary shadow-sm border border-outline-variant/10'
-                            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30 border border-transparent'
+                            ? 'bg-surface-card text-flame shadow-md border border-border'
+                            : 'text-fg-mute hover:text-fg hover:bg-surface-elev border border-transparent'
                         }`}
                         type="button"
                       >
@@ -288,14 +305,14 @@ export default function AthleteConfigurationPage() {
 
                   {/* Active Rule Editor */}
                   {rules[activeRuleIdx] && (
-                    <div className="bg-surface-container-low rounded-[2rem] p-6 md:p-8 border border-outline/10 shadow-sm transition-all">
-                      <div className="flex justify-between items-start mb-6 border-b border-outline/5 pb-4">
+                    <div className="bg-surface-elev rounded-[2rem] p-6 md:p-8 border border-border shadow-sm transition-all">
+                      <div className="flex justify-between items-start mb-6 border-b border-border pb-4">
                         <div>
-                          <p className="text-base font-body text-on-surface-variant leading-relaxed">
+                          <p className="text-base text-fg-mute leading-relaxed">
                             {RULE_SECTION_DESCRIPTIONS[rules[activeRuleIdx].rule_name] || "Configure specific parameter thresholds for this rule."}
                           </p>
                           <div className="flex gap-2 mt-4">
-                             <span className="text-[11px] font-label font-bold uppercase tracking-widest bg-surface-container-highest px-3 py-1.5 rounded-md text-on-surface-variant shadow-inner">
+                             <span className="text-[11px] font-label font-bold uppercase tracking-widest bg-bg border border-border px-3 py-1.5 rounded-md text-fg-mute shadow-inner">
                                {rules[activeRuleIdx].rule_type}
                              </span>
                           </div>
@@ -305,27 +322,85 @@ export default function AthleteConfigurationPage() {
                       <div className="flex flex-col gap-4">
                         {/* Threshold Settings */}
                         <div className="space-y-4">
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {rules[activeRuleIdx].threshold_value && Object.keys(rules[activeRuleIdx].threshold_value)
-                              .filter(key => key !== 'penalty')
-                              .map(key => {
-                              const config = getParamConfig(key);
-                              return (
-                                <DifficultySlider
-                                  key={key}
-                                  label={key}
-                                  value={parseFloat(rules[activeRuleIdx].threshold_value[key])}
-                                  min={config.min}
-                                  max={config.max}
-                                  step={config.step}
-                                  direction={config.direction}
-                                  description={config.description}
-                                  imageUrl={config.imageUrl}
-                                  onChange={(newVal) => handleRuleChange(activeRuleIdx, `threshold_${key}`, newVal)}
-                                />
-                              );
-                            })}
-                          </div>
+                          {rules[activeRuleIdx].rule_name === 'DYNAMIC_PROFILE' ? (
+                            <div className="flex flex-col gap-6">
+                              {rules[activeRuleIdx].threshold_value?.phases?.map((phase: any, phaseIdx: number) => (
+                                <div key={phaseIdx} className="bg-surface border border-border rounded-2xl p-6">
+                                  <h3 className="h3 text-fg mb-4">{phase.name}</h3>
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {phase.entryConditions?.map((cond: any, condIdx: number) => {
+                                      const config = getDynamicConfig(cond.metric);
+                                      return (
+                                        <DifficultySlider
+                                          key={`entry-${condIdx}`}
+                                          label={`Entry: ${cond.metric.replace(/_/g, ' ')}`}
+                                          value={Number(cond.value)}
+                                          min={config.min}
+                                          max={config.max}
+                                          step={config.step}
+                                          direction={config.direction}
+                                          description={`${cond.operator} ${cond.value}`}
+                                          onChange={(newVal) => {
+                                            const updatedRules = [...rules];
+                                            const newProfile = JSON.parse(JSON.stringify(updatedRules[activeRuleIdx].threshold_value));
+                                            newProfile.phases[phaseIdx].entryConditions[condIdx].value = newVal;
+                                            updatedRules[activeRuleIdx].threshold_value = newProfile;
+                                            setRules(updatedRules);
+                                            setIsDirty(true);
+                                          }}
+                                        />
+                                      );
+                                    })}
+                                    {phase.formChecks?.map((check: any, checkIdx: number) => {
+                                      const config = getDynamicConfig(check.metric);
+                                      return (
+                                        <DifficultySlider
+                                          key={`check-${checkIdx}`}
+                                          label={`Form: ${check.metric.replace(/_/g, ' ')}`}
+                                          value={Number(check.value)}
+                                          min={config.min}
+                                          max={config.max}
+                                          step={config.step}
+                                          direction={config.direction}
+                                          description={`${check.operator} ${check.value}`}
+                                          onChange={(newVal) => {
+                                            const updatedRules = [...rules];
+                                            const newProfile = JSON.parse(JSON.stringify(updatedRules[activeRuleIdx].threshold_value));
+                                            newProfile.phases[phaseIdx].formChecks[checkIdx].value = newVal;
+                                            updatedRules[activeRuleIdx].threshold_value = newProfile;
+                                            setRules(updatedRules);
+                                            setIsDirty(true);
+                                          }}
+                                        />
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                              {rules[activeRuleIdx].threshold_value && Object.keys(rules[activeRuleIdx].threshold_value)
+                                .filter(key => key !== 'penalty')
+                                .map(key => {
+                                const config = getDynamicConfig(key);
+                                return (
+                                  <DifficultySlider
+                                    key={key}
+                                    label={key}
+                                    value={parseFloat(rules[activeRuleIdx].threshold_value[key])}
+                                    min={config.min}
+                                    max={config.max}
+                                    step={config.step}
+                                    direction={config.direction}
+                                    description={config.description}
+                                    imageUrl={config.imageUrl}
+                                    onChange={(newVal) => handleRuleChange(activeRuleIdx, `threshold_${key}`, newVal)}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -334,7 +409,7 @@ export default function AthleteConfigurationPage() {
               )}
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-on-surface-variant font-body p-12 text-center">
+            <div className="flex-1 flex items-center justify-center text-fg-mute p-12 text-center">
               Failed to load the selected exercise.
             </div>
           )}
@@ -343,9 +418,9 @@ export default function AthleteConfigurationPage() {
 
       {showExitModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-surface-container-lowest p-6 sm:p-8 rounded-[2rem] max-w-sm w-full shadow-2xl border border-outline/10">
-            <h3 className="font-headline text-xl font-bold text-on-surface mb-2">Unsaved Changes</h3>
-            <p className="font-body text-on-surface-variant mb-8 leading-relaxed">
+          <div className="bg-surface-card p-6 sm:p-8 rounded-[2rem] max-w-sm w-full shadow-2xl border border-border">
+            <h3 className="h3 text-fg mb-2">Unsaved Changes</h3>
+            <p className="text-fg-mute mb-8 leading-relaxed">
               You have unsaved changes. Would you like to save them before leaving?
             </p>
             <div className="flex flex-col gap-3">
@@ -354,19 +429,19 @@ export default function AthleteConfigurationPage() {
                   await handleSaveAllRules();
                   router.push('/');
                 }}
-                className="w-full py-3 bg-primary text-on-primary rounded-xl font-bold hover:scale-[1.02] active:scale-95 transition-transform shadow-md"
+                className="w-full py-3 bg-flame text-on-dark rounded-xl font-bold hover:scale-[1.02] active:scale-95 transition-transform shadow-flame"
               >
                 Yes, Save & Exit
               </button>
               <button
                 onClick={() => router.push('/')}
-                className="w-full py-3 bg-error/10 text-error rounded-xl font-bold hover:bg-error/20 transition-colors"
+                className="w-full py-3 bg-err/10 text-err rounded-xl font-bold hover:bg-err/20 transition-colors"
               >
                 No, Exit Without Saving
               </button>
               <button
                 onClick={() => setShowExitModal(false)}
-                className="w-full py-3 bg-surface-variant/50 text-on-surface-variant rounded-xl font-bold hover:bg-surface-variant transition-colors mt-2"
+                className="w-full py-3 bg-surface-elev text-fg-mute rounded-xl font-bold hover:bg-surface-elev-hover transition-colors mt-2"
               >
                 Cancel
               </button>
