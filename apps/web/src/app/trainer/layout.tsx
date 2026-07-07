@@ -29,6 +29,10 @@ export default function TrainerLayout({
   }, [pathname]);
 
   useEffect(() => {
+    if (isLoginPage) {
+      document.documentElement.removeAttribute("data-theme");
+      return;
+    }
     const savedTheme = localStorage.getItem("indianic-theme");
     if (savedTheme) {
       setTheme(savedTheme);
@@ -36,7 +40,7 @@ export default function TrainerLayout({
     } else {
       document.documentElement.setAttribute("data-theme", "dark");
     }
-  }, []);
+  }, [isLoginPage]);
 
   useEffect(() => {
     if ((pathname?.startsWith("/trainer/athlete/") || pathname?.startsWith("/trainer/exercises/athlete/")) && trainer) {
