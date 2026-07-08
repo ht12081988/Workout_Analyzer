@@ -1,10 +1,15 @@
-import React from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { useTheme } from '../ThemeContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MobileTracker } from '../components/MobileTracker';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export function TrackerScreen({ route, navigation }: any) {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors);
   const { exerciseName, mode, trainerId } = route.params;
+  const [showExitModal, setShowExitModal] = useState(false);
 
   return (
     <View style={styles.container}>
@@ -13,24 +18,28 @@ export function TrackerScreen({ route, navigation }: any) {
       {/* Absolute Back Button floating over the camera */}
       <TouchableOpacity 
         style={styles.backButton}
-        onPress={() => {
-          Alert.alert(
-            "Confirm Exit",
-            "Are you sure you want to exit the tracking session?",
-            [
-              { text: "Cancel", style: "cancel" },
-              { text: "Exit", onPress: () => navigation.goBack(), style: "destructive" }
-            ]
-          );
-        }}
+        onPress={() => setShowExitModal(true)}
       >
         <MaterialIcons name="arrow-back" size={28} color="white" />
       </TouchableOpacity>
+      
+      <ConfirmModal
+        visible={showExitModal}
+        title="Confirm Exit"
+        message="Are you sure you want to exit the tracking session?"
+        confirmText="Exit"
+        isDestructive={true}
+        onCancel={() => setShowExitModal(false)}
+        onConfirm={() => {
+          setShowExitModal(false);
+          navigation.goBack();
+        }}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'black',

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, Spacing, Radii } from '../theme';
+import { Spacing, Radii } from '../theme';
+import { useTheme } from '../ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import { API_BASE_URL } from '../config';
 
 type WorkoutSession = {
@@ -23,11 +25,18 @@ type WorkoutSession = {
 };
 
 export function HistoryScreen({ navigation }: any) {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
   const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+
+  // Filtering state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedSubCategory, setSelectedSubCategory] = useState('All');
 
   const fetchHistory = async (isRefreshing = false) => {
     try {
@@ -113,13 +122,13 @@ export function HistoryScreen({ navigation }: any) {
 
       <View style={styles.statsContainer}>
         <View style={styles.statBox}>
-          <MaterialIcons name="fitness-center" size={16} color={Colors.primary} />
+          <MaterialIcons name="fitness-center" size={16} color={colors.primary} />
           <Text style={styles.statLabel}>Reps</Text>
           <Text style={styles.statValue}>{item.total_reps || 0}</Text>
         </View>
 
         <View style={styles.statBox}>
-          <MaterialIcons name="format-list-numbered" size={16} color={Colors.secondary} />
+          <MaterialIcons name="format-list-numbered" size={16} color={colors.secondary} />
           <Text style={styles.statLabel}>Attempts</Text>
           <Text style={styles.statValue}>{item.total_attempts || 0}</Text>
         </View>
@@ -133,17 +142,86 @@ export function HistoryScreen({ navigation }: any) {
     </TouchableOpacity>
   );
 
+  const categories = useMemo(() => {
+    const cats = new Set(sessions.map(s => s.exercise_category || 'Workout'));
+    return ['All', ...Array.from(cats)];
+  }, [sessions]);
+
+  const subCategories = useMemo(() => {
+    const filteredByCat = selectedCategory === 'All' 
+      ? sessions 
+      : sessions.filter(s => (s.exercise_category || 'Workout') === selectedCategory);
+    const subCats = new Set(filteredByCat.map(s => s.exercise_subcategory).filter(Boolean));
+    return ['All', ...Array.from(subCats)];
+  }, [sessions, selectedCategory]);
+
+  const filteredSessions = useMemo(() => {
+    return sessions.filter(s => {
+      const matchSearch = s.exercise_name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchCat = selectedCategory === 'All' || (s.exercise_category || 'Workout') === selectedCategory;
+      const matchSub = selectedSubCategory === 'All' || s.exercise_subcategory === selectedSubCategory;
+      return matchSearch && matchCat && matchSub;
+    });
+  }, [sessions, searchQuery, selectedCategory, selectedSubCategory]);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>History</Text>
+        <Text style={styles.headerTitle}>History</Text>
+      </View>
+
+      <View style={styles.filterSection}>
+        <View style={styles.searchContainer}>
+          <MaterialIcons name="search" size={20} color={colors.outlineVariant} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search workouts..."
+            placeholderTextColor={colors.onSurfaceVariant}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <MaterialIcons name="close" size={20} color={colors.outlineVariant} />
+            </TouchableOpacity>
+          )}
         </View>
+
+        {categories.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll} contentContainerStyle={styles.chipContainer}>
+            {categories.map(cat => (
+              <TouchableOpacity
+                key={`cat-${cat}`}
+                style={[styles.chip, selectedCategory === cat && styles.chipActive]}
+                onPress={() => {
+                  setSelectedCategory(cat);
+                  setSelectedSubCategory('All');
+                }}
+              >
+                <Text style={[styles.chipText, selectedCategory === cat && styles.chipTextActive]}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {selectedCategory !== 'All' && subCategories.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll} contentContainerStyle={styles.chipContainer}>
+            {subCategories.map(sub => (
+              <TouchableOpacity
+                key={`sub-${sub}`}
+                style={[styles.chip, selectedSubCategory === sub && styles.chipActive]}
+                onPress={() => setSelectedSubCategory(sub)}
+              >
+                <Text style={[styles.chipText, selectedSubCategory === sub && styles.chipTextActive]}>{sub}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
       </View>
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : error ? (
         <View style={styles.center}>
@@ -154,7 +232,7 @@ export function HistoryScreen({ navigation }: any) {
         </View>
       ) : sessions.length === 0 ? (
         <View style={styles.center}>
-          <MaterialIcons name="history" size={64} color={Colors.outlineVariant} />
+          <MaterialIcons name="history" size={64} color={colors.outlineVariant} />
           <Text style={styles.emptyText}>No workout history found yet.</Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -163,9 +241,24 @@ export function HistoryScreen({ navigation }: any) {
             <Text style={styles.retryText}>Start a Practice</Text>
           </TouchableOpacity>
         </View>
+      ) : filteredSessions.length === 0 ? (
+        <View style={styles.center}>
+          <MaterialIcons name="search-off" size={64} color={colors.outlineVariant} />
+          <Text style={styles.emptyText}>No sessions match your filters.</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setSearchQuery('');
+              setSelectedCategory('All');
+              setSelectedSubCategory('All');
+            }}
+          >
+            <Text style={styles.retryText}>Clear Filters</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <FlatList
-          data={sessions}
+          data={filteredSessions}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContainer}
@@ -175,23 +268,23 @@ export function HistoryScreen({ navigation }: any) {
         />
       )}
 
-      <View style={[styles.bottomNavContainer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+      <View style={[styles.bottomNavContainer, { paddingBottom: Math.max(insets.bottom, 24) + 12 }]}>
         <View style={styles.bottomNavInner}>
           <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Dashboard')}>
             <View style={styles.iconCircle}>
-              <MaterialIcons name="fitness-center" size={24} color={Colors.onPrimaryContainer} />
+              <MaterialIcons name="fitness-center" size={24} color={colors.onSurfaceVariant} />
             </View>
             <Text style={styles.navText}>Practice</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.navItemActive}>
             <View style={styles.iconCircleActive}>
-              <MaterialIcons name="insights" size={24} color={Colors.primaryFixed} />
+              <MaterialIcons name="insights" size={24} color={colors.primary} />
             </View>
             <Text style={styles.navTextActive}>History</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.navItem} onPress={handleSignOut}>
             <View style={styles.iconCircle}>
-              <MaterialIcons name="person" size={24} color={Colors.onPrimaryContainer} />
+              <MaterialIcons name="person" size={24} color={colors.onSurfaceVariant} />
             </View>
             <Text style={styles.navText}>Logout</Text>
           </TouchableOpacity>
@@ -201,10 +294,10 @@ export function HistoryScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
   },
   header: {
     padding: Spacing.xl,
@@ -213,13 +306,63 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     textTransform: 'uppercase',
-    color: Colors.secondary,
+    color: colors.secondary,
     marginBottom: Spacing.xs,
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.onSurface,
+  },
+  filterSection: {
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.md,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerHighest,
+    borderRadius: Radii.md,
+    paddingHorizontal: Spacing.md,
+    height: 48,
+    marginBottom: Spacing.md,
+  },
+  searchIcon: {
+    marginRight: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    color: colors.onSurface,
+    fontSize: 16,
+  },
+  chipScroll: {
+    marginBottom: Spacing.sm,
+  },
+  chipContainer: {
+    gap: Spacing.sm,
+    paddingRight: Spacing.xl,
+  },
+  chip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radii.round,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  chipActive: {
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    color: colors.onSurfaceVariant,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  chipTextActive: {
+    color: colors.primary,
+    fontWeight: 'bold',
   },
   center: {
     flex: 1,
@@ -230,24 +373,24 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: Spacing.lg,
     fontSize: 16,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     textAlign: 'center',
     marginBottom: Spacing.md,
   },
   errorText: {
-    color: Colors.error,
+    color: colors.error,
     fontSize: 16,
     textAlign: 'center',
     marginBottom: Spacing.md,
   },
   retryButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: Radii.round,
   },
   retryText: {
-    color: Colors.onPrimary,
+    color: colors.onPrimary,
     fontWeight: 'bold',
   },
   listContainer: {
@@ -255,7 +398,7 @@ const styles = StyleSheet.create({
     paddingBottom: 130, // Increased extra padding for floating bottom nav
   },
   sessionCard: {
-    backgroundColor: Colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceContainerLow,
     borderRadius: Radii.xl,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
@@ -264,11 +407,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.primaryContainer,
   },
   cardHeader: {
     flexDirection: 'column',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.surfaceContainer,
+    borderBottomColor: colors.surfaceContainer,
     paddingBottom: Spacing.sm,
     marginBottom: Spacing.md,
   },
@@ -281,11 +426,11 @@ const styles = StyleSheet.create({
   exerciseName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.onSurface,
+    color: colors.onSurface,
   },
   exerciseCategory: {
     fontSize: 12,
-    color: Colors.outline,
+    color: colors.outline,
     textTransform: 'uppercase',
     marginTop: 2,
     flex: 1,
@@ -293,7 +438,7 @@ const styles = StyleSheet.create({
   },
   sessionDate: {
     fontSize: 12,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     flexShrink: 0,
   },
   statsContainer: {
@@ -303,7 +448,7 @@ const styles = StyleSheet.create({
   statBox: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: Colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceContainerLowest,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.xs,
     borderRadius: Radii.md,
@@ -313,10 +458,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: colors.primaryContainer,
   },
   statLabel: {
     fontSize: 10,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     textTransform: 'uppercase',
     marginTop: 4,
     fontWeight: '500',
@@ -324,7 +471,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Colors.onSurface,
+    color: colors.onSurface,
     marginTop: 2,
   },
   bottomNavContainer: {
@@ -336,7 +483,6 @@ const styles = StyleSheet.create({
   },
   bottomNavInner: {
     flexDirection: 'row',
-    backgroundColor: Colors.primary,
     justifyContent: 'space-around',
     alignItems: 'center',
     paddingVertical: 12,
@@ -345,8 +491,9 @@ const styles = StyleSheet.create({
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
+    backgroundColor: colors.surfaceContainerHigh,
   },
   navItem: {
     alignItems: 'center',
@@ -372,20 +519,20 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.primaryContainer,
+    backgroundColor: colors.primaryContainer,
   },
   navText: {
     fontSize: 10,
     fontWeight: 'bold',
     textTransform: 'uppercase',
-    color: Colors.onPrimaryContainer,
+    color: colors.onSurfaceVariant,
     marginTop: 4,
   },
   navTextActive: {
     fontSize: 10,
     fontWeight: 'bold',
     textTransform: 'uppercase',
-    color: Colors.primaryFixed,
+    color: colors.primary,
     marginTop: 4,
   },
 });

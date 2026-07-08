@@ -87,6 +87,8 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const timestampRef = useRef<HTMLDivElement>(null);
+  const leftMetricsRef = useRef<HTMLDivElement>(null);
+  const rightMetricsRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -470,6 +472,43 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
       if (timestampText && timestampRef.current) {
         timestampRef.current.innerText = timestampText;
       }
+
+      if (leftMetricsRef.current || rightMetricsRef.current) {
+        let leftHTML = '';
+        let rightHTML = '';
+        
+        for (const [name, val] of Object.entries(angles)) {
+          const lowerName = name.toLowerCase();
+          
+          const isLeft = lowerName.startsWith('l');
+          const isRight = lowerName.startsWith('r');
+          
+          let cleanName = lowerName.replace(/^left|^right|^l|^r/i, '').replace(/angle|ratio|tilt/i, '').trim().toUpperCase();
+          if (cleanName === 'KNEE') cleanName = 'KNEE';
+          if (cleanName === 'TORSO') cleanName = 'TORSO';
+          if (lowerName.includes('tilt')) cleanName = 'TILT';
+          if (lowerName.includes('valgus')) cleanName = 'VALGUS';
+          if (lowerName.includes('stance')) cleanName = 'STANCE';
+          if (cleanName === '') cleanName = lowerName.toUpperCase();
+          
+          let displayVal = Number(val).toFixed(1);
+          if (!lowerName.includes('ratio')) displayVal += '°';
+          
+          const html = `
+            <div class="bg-black/50 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1.5 shadow-lg w-full flex flex-col justify-center">
+              <div class="text-[9px] text-white/50 font-bold tracking-wider">${cleanName}</div>
+              <div class="text-sm font-mono text-cyan-400 font-bold leading-tight">${displayVal}</div>
+            </div>
+          `;
+          
+          if (isLeft) leftHTML += html;
+          else if (isRight) rightHTML += html;
+          else leftHTML += html;
+        }
+        
+        if (leftMetricsRef.current) leftMetricsRef.current.innerHTML = leftHTML;
+        if (rightMetricsRef.current) rightMetricsRef.current.innerHTML = rightHTML;
+      }
     }
   };
 
@@ -697,6 +736,16 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
             </div>
           )}
         </div>
+
+        {/* Live Left/Right Metrics Overlays */}
+        <div 
+          ref={leftMetricsRef}
+          className="absolute left-8 sm:left-16 lg:left-[20%] top-1/3 z-20 flex flex-col gap-2 pointer-events-none w-28 empty:hidden"
+        />
+        <div 
+          ref={rightMetricsRef}
+          className="absolute right-8 sm:right-16 lg:right-[20%] top-1/3 z-20 flex flex-col gap-2 pointer-events-none w-28 items-end text-right empty:hidden"
+        />
 
         {/* Navigation Arrows */}
         {onPrev && (

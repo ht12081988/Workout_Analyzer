@@ -24,9 +24,7 @@ const POSE_CONNECTIONS = [
   ['LEFT_ANKLE', 'LEFT_FOOT_INDEX'],
   ['RIGHT_ANKLE', 'RIGHT_FOOT_INDEX'],
 
-  // Head and Neck (Neck only, face is handled by HEAD_CENTER and red pointers)
-  ['LEFT_SHOULDER', 'LEFT_EAR'], 
-  ['RIGHT_SHOULDER', 'RIGHT_EAR'],
+  // Head and Neck are handled manually
 
   // Arms
   ['LEFT_SHOULDER', 'LEFT_ELBOW'],
@@ -133,20 +131,37 @@ const interpolatePose = (start: PoseData, target: PoseData, progress: number): P
 // Component to render the actual skeleton
 const SkeletonScene = ({
   frames,
+  angles,
   isPlaying,
   onComplete,
   isPaused,
   timestampRef,
+  leftMetricsRef,
+  rightMetricsRef,
   baseMs
 }: {
   frames: Frame[],
+  angles?: any[],
   isPlaying: boolean,
   onComplete?: () => void,
   isPaused: boolean,
   timestampRef?: React.RefObject<HTMLDivElement>,
+  leftMetricsRef?: React.RefObject<HTMLDivElement>,
+  rightMetricsRef?: React.RefObject<HTMLDivElement>,
   baseMs?: number
 }) => {
   const { scene } = useThree();
+
+  const anglesByFrame = useMemo(() => {
+    const map = new Map<number, any[]>();
+    if (!angles) return map;
+    angles.forEach(a => {
+      const fn = a.frame_number;
+      if (!map.has(fn)) map.set(fn, []);
+      map.get(fn)!.push(a);
+    });
+    return map;
+  }, [angles]);
 
   // References to our instantiated meshes
   const jointMeshes = useRef<Record<string, THREE.Mesh>>({});
@@ -158,23 +173,25 @@ const SkeletonScene = ({
   const headGeo = useMemo(() => new THREE.SphereGeometry(0.12, 32, 32), []); // Large round head
   
   const boneMat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#ffffff', // White body
-    roughness: 0.3,
-    metalness: 0.2
+    color: '#ffa500', // Bright orange
+    emissive: '#ff7700',
+    emissiveIntensity: 0.1,
+    roughness: 0.8,
+    metalness: 0.0
   }), []);
 
   const jointMat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#ffffff', // White joints
-    emissive: '#ffffff',
-    emissiveIntensity: 0.2,
+    color: '#06b6d4', // Cyan joints
+    emissive: '#06b6d4',
+    emissiveIntensity: 0.4,
     roughness: 0.2,
     metalness: 0.2
   }), []);
 
   const faceMat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#ffffff', // White for facial pointers
-    emissive: '#ffffff',
-    emissiveIntensity: 0.5,
+    color: '#06b6d4', // Cyan for facial pointers
+    emissive: '#06b6d4',
+    emissiveIntensity: 0.6,
     roughness: 0.2,
     metalness: 0.2
   }), []);
@@ -205,6 +222,14 @@ const SkeletonScene = ({
       mesh.castShadow = true;
       scene.add(mesh);
       jointMeshes.current['HEAD_CENTER'] = mesh;
+    }
+
+    // Add neck bone mesh
+    if (!boneMeshes.current['NECK']) {
+      const mesh = new THREE.Mesh(cylinderGeo, boneMat);
+      mesh.castShadow = true;
+      scene.add(mesh);
+      boneMeshes.current['NECK'] = mesh;
     }
 
     // Create bone meshes
@@ -261,7 +286,35 @@ const SkeletonScene = ({
   }, [isPlaying, isPaused, frames]);
 
   const updateSkeleton = (pose: PoseData) => {
-    // Update joints
+    // 1. Calculate Head Center (from ears)
+    const leftEar = pose['LEFT_EAR'];
+    const rightEar = pose['RIGHT_EAR'];
+    let headCenterPos: THREE.Vector3 | null = null;
+    
+    if (leftEar && rightEar) {
+      const visLEar = leftEar.visibility !== undefined ? leftEar.visibility : 1;
+      const visREar = rightEar.visibility !== undefined ? rightEar.visibility : 1;
+      if (visLEar > 0.1 && visREar > 0.1) {
+        const vL = convertTo3D(leftEar);
+        const vR = convertTo3D(rightEar);
+        headCenterPos = vL.clone().add(vR).divideScalar(2);
+        headCenterPos.y += 0.04; // Move it slightly up from the exact ear line
+      }
+    }
+
+    // 2. Position round head
+    const headMesh = jointMeshes.current['HEAD_CENTER'];
+    if (headMesh) {
+      if (headCenterPos) {
+        headMesh.position.copy(headCenterPos);
+        headMesh.scale.setScalar(1); // Force original 0.12 radius
+        headMesh.visible = true;
+      } else {
+        headMesh.visible = false;
+      }
+    }
+
+    // 3. Update joints (snap face points to head surface)
     Object.entries(pose).forEach(([key, lm]) => {
       const mesh = jointMeshes.current[key];
       if (mesh && key !== 'HEAD_CENTER') {
@@ -269,36 +322,21 @@ const SkeletonScene = ({
         if (vis > 0.1) {
           mesh.visible = true;
           const pos = convertTo3D(lm);
-          // Push facial landmarks forward slightly so they sit on the surface of the round head
-          if (['NOSE', 'LEFT_EYE', 'RIGHT_EYE'].includes(key)) {
-             pos.z += 0.08; // Push to front of head (less than 0.12 so it's not floating)
-          } else if (['LEFT_EAR', 'RIGHT_EAR'].includes(key)) {
-             pos.x += key === 'LEFT_EAR' ? -0.10 : 0.10; // Push to side of head
+          
+          const isFacePoint = ['NOSE', 'LEFT_EYE', 'RIGHT_EYE', 'LEFT_EAR', 'RIGHT_EAR'].includes(key);
+          if (isFacePoint && headCenterPos) {
+            // Project the face points onto the surface of the head sphere
+            // The head radius is 0.12, place them at 0.125 so they stick out slightly
+            const dir = pos.clone().sub(headCenterPos).normalize();
+            mesh.position.copy(headCenterPos.clone().add(dir.multiplyScalar(0.125)));
+          } else {
+            mesh.position.copy(pos);
           }
-          mesh.position.copy(pos);
         } else {
           mesh.visible = false;
         }
       }
     });
-
-    // Position round head
-    const leftEar = pose['LEFT_EAR'];
-    const rightEar = pose['RIGHT_EAR'];
-    const headMesh = jointMeshes.current['HEAD_CENTER'];
-    if (headMesh) {
-      if (leftEar && rightEar && leftEar.visibility > 0.1 && rightEar.visibility > 0.1) {
-        const vL = convertTo3D(leftEar);
-        const vR = convertTo3D(rightEar);
-        const center = vL.clone().add(vR).divideScalar(2);
-        center.y += 0.04; // Move it slightly up from the ears
-        center.z -= 0.04; // Move it slightly back from the face
-        headMesh.position.copy(center);
-        headMesh.visible = true;
-      } else {
-        headMesh.visible = false;
-      }
-    }
 
     // Update bones
     POSE_CONNECTIONS.forEach(connection => {
@@ -334,6 +372,35 @@ const SkeletonScene = ({
         }
       }
     });
+
+    // Custom Neck Bone
+    const neckMesh = boneMeshes.current['NECK'];
+    if (neckMesh) {
+      const leftShoulder = pose['LEFT_SHOULDER'];
+      const rightShoulder = pose['RIGHT_SHOULDER'];
+      const visL = leftShoulder?.visibility !== undefined ? leftShoulder.visibility : 1;
+      const visR = rightShoulder?.visibility !== undefined ? rightShoulder.visibility : 1;
+
+      if (leftShoulder && rightShoulder && headCenterPos && visL > 0.1 && visR > 0.1) {
+        neckMesh.visible = true;
+        const vLShoulder = convertTo3D(leftShoulder);
+        const vRShoulder = convertTo3D(rightShoulder);
+        const midShoulder = vLShoulder.clone().add(vRShoulder).divideScalar(2);
+
+        const distance = midShoulder.distanceTo(headCenterPos);
+        const position = headCenterPos.clone().add(midShoulder).divideScalar(2);
+
+        neckMesh.position.copy(position);
+        neckMesh.scale.set(1, distance, 1);
+
+        const quaternion = new THREE.Quaternion();
+        const dir = new THREE.Vector3().subVectors(headCenterPos, midShoulder).normalize();
+        quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        neckMesh.setRotationFromQuaternion(quaternion);
+      } else {
+        neckMesh.visible = false;
+      }
+    }
   };
 
   useFrame((state) => {
@@ -393,6 +460,37 @@ const SkeletonScene = ({
       hours = hours ? hours : 12;
       timestampRef.current.innerText = `${pad(hours)}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)} ${ampm}`;
     }
+
+    if (leftMetricsRef?.current || rightMetricsRef?.current) {
+      const currentAngles = anglesByFrame.get(currFrame.frame_number || 0) || [];
+      let leftHTML = '';
+      let rightHTML = '';
+      
+      currentAngles.forEach(a => {
+        const name = a.angle_name || '';
+        const val = parseFloat(a.angle_value).toFixed(1) + '°';
+        
+        const isLeft = name.toLowerCase().startsWith('l');
+        const isRight = name.toLowerCase().startsWith('r');
+        
+        // Clean up the name to just be the joint name, e.g., "leftKnee" -> "KNEE"
+        const cleanName = name.replace(/^left|^right/i, '').replace(/([A-Z])/g, ' $1').trim().toUpperCase();
+        
+        const html = `
+          <div class="bg-black/50 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1.5 shadow-lg w-full flex flex-col justify-center">
+            <div class="text-[9px] text-white/50 font-bold tracking-wider">${cleanName}</div>
+            <div class="text-sm font-mono text-cyan-400 font-bold leading-tight">${val}</div>
+          </div>
+        `;
+        
+        if (isLeft) leftHTML += html;
+        else if (isRight) rightHTML += html;
+        else leftHTML += html;
+      });
+      
+      if (leftMetricsRef?.current) leftMetricsRef.current.innerHTML = leftHTML;
+      if (rightMetricsRef?.current) rightMetricsRef.current.innerHTML = rightHTML;
+    }
   });
 
   return null;
@@ -400,6 +498,7 @@ const SkeletonScene = ({
 
 export const SkeletonReplay3D: React.FC<SkeletonReplayProps> = ({
   frames,
+  angles,
   width = 600,
   height = 400,
   repTiming,
@@ -411,6 +510,8 @@ export const SkeletonReplay3D: React.FC<SkeletonReplayProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const timestampRef = useRef<HTMLDivElement>(null);
+  const leftMetricsRef = useRef<HTMLDivElement>(null);
+  const rightMetricsRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -489,9 +590,12 @@ export const SkeletonReplay3D: React.FC<SkeletonReplayProps> = ({
 
           <SkeletonScene
             frames={sortedFrames}
+            angles={angles}
             isPlaying={isPlaying}
             isPaused={isPaused}
             timestampRef={timestampRef as any}
+            leftMetricsRef={leftMetricsRef as any}
+            rightMetricsRef={rightMetricsRef as any}
             baseMs={baseMs}
             onComplete={() => {
               setIsPlaying(false);
@@ -532,7 +636,6 @@ export const SkeletonReplay3D: React.FC<SkeletonReplayProps> = ({
           )}
         </button>
 
-        {/* Controls Row (Feedback) */}
         <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 pointer-events-none">
           {/* Timestamp Indicator */}
           <div
@@ -545,6 +648,16 @@ export const SkeletonReplay3D: React.FC<SkeletonReplayProps> = ({
             </div>
           )}
         </div>
+
+        {/* Live Left/Right Metrics Overlays */}
+        <div 
+          ref={leftMetricsRef}
+          className="absolute left-8 sm:left-16 lg:left-[20%] top-1/3 z-20 flex flex-col gap-2 pointer-events-none w-28 empty:hidden"
+        />
+        <div 
+          ref={rightMetricsRef}
+          className="absolute right-8 sm:right-16 lg:right-[20%] top-1/3 z-20 flex flex-col gap-2 pointer-events-none w-28 items-end text-right empty:hidden"
+        />
 
         {/* Navigation Arrows */}
         {onPrev && (

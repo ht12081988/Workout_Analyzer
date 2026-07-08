@@ -16,9 +16,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
 import { MovementEngine, PoseData, Landmark, ExerciseState } from '@workout/shared';
-import { Colors, Spacing, Radii } from '../theme';
+import { Spacing, Radii } from '../theme';
+import { useTheme } from '../ThemeContext';
 import { API_BASE_URL } from '../config';
 import { useVoiceGuide } from '../hooks/useVoiceGuide';
+import { ConfirmModal } from './ConfirmModal';
 
 interface MobileTrackerProps {
   exerciseType: string; // E.g., "Pile Squats", "Squats ", etc.
@@ -84,6 +86,8 @@ const Line = ({ p1, p2, color }: { p1: { x: number, y: number }, p2: { x: number
 };
 
 export function MobileTracker({ exerciseType, mode = 'self', trainerId }: MobileTrackerProps) {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
   useKeepAwake();
   const navigation = useNavigation<any>();
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -94,6 +98,7 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
   const [engine] = useState(() => new MovementEngine());
   const [isStarted, setIsStarted] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [showStopModal, setShowStopModal] = useState(false);
 
   // API sync states
   const [userId, setUserId] = useState<string | null>(null);
@@ -462,26 +467,7 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
   // Toggle countdown before starting workout
   const handleToggleWorkout = async () => {
     if (isStarted) {
-      Alert.alert(
-        "Stop Practice",
-        "Are you sure you want to stop this practice session?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Stop",
-            style: "destructive",
-            onPress: async () => {
-              engine.stop();
-              setIsStarted(false);
-              await saveSession('completed');
-              setSessionId(null);
-              sessionIdRef.current = null;
-              setLastPose(null);
-              navigation.navigate('Dashboard');
-            }
-          }
-        ]
-      );
+      setShowStopModal(true);
     } else {
       setCountdown(5);
     }
@@ -546,7 +532,7 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
   if (!hasPermission) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.text}>Requesting Camera Permission...</Text>
       </View>
     );
@@ -555,7 +541,7 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
   if (device == null) {
     return (
       <View style={styles.center}>
-        <MaterialIcons name="camera-alt" size={48} color={Colors.outline} />
+        <MaterialIcons name="camera-alt" size={48} color={colors.outline} />
         <Text style={styles.text}>No Camera Found</Text>
       </View>
     );
@@ -672,7 +658,7 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
           <View style={styles.verticalStatsContainer} pointerEvents="box-none">
             <View style={styles.leftButtonsContainer}>
               <TouchableOpacity style={styles.leftControlBtn} onPress={() => toggleVoice(!isVoiceEnabled)}>
-                <MaterialIcons name={isVoiceEnabled ? "volume-up" : "volume-off"} size={24} color="white" />
+                <MaterialIcons name={isVoiceEnabled ? "volume-up" : "volume-off"} size={24} color={isDark ? "white" : colors.onSurface} />
               </TouchableOpacity>
               <TouchableOpacity style={[styles.leftControlBtn, styles.btnPause]} onPress={handleToggleWorkout}>
                 <MaterialIcons name="stop" size={24} color="white" />
@@ -704,11 +690,29 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
         {!isStarted && countdown === null && (
           <View style={styles.centerPlayOverlay} pointerEvents="box-none">
             <TouchableOpacity style={styles.centerPlayBtn} onPress={handleToggleWorkout}>
-              <MaterialIcons name="play-arrow" size={64} color="white" />
+              <MaterialIcons name="play-arrow" size={64} color={isDark ? "white" : colors.primary} />
             </TouchableOpacity>
           </View>
         )}
 
+        <ConfirmModal
+          visible={showStopModal}
+          title="Stop Practice"
+          message="Are you sure you want to stop this practice session?"
+          confirmText="Stop"
+          isDestructive={true}
+          onCancel={() => setShowStopModal(false)}
+          onConfirm={async () => {
+            setShowStopModal(false);
+            engine.stop();
+            setIsStarted(false);
+            await saveSession('completed');
+            setSessionId(null);
+            sessionIdRef.current = null;
+            setLastPose(null);
+            navigation.navigate('Dashboard');
+          }}
+        />
       </View>
     </View>
   );
@@ -716,16 +720,16 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
 
 
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#00142B',
+    backgroundColor: isDark ? '#00142B' : colors.background,
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#00142B',
+    backgroundColor: isDark ? '#00142B' : colors.background,
   },
   text: {
     color: 'white',
@@ -909,25 +913,25 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: 'rgba(0, 20, 43, 0.85)',
+    backgroundColor: isDark ? 'rgba(0, 20, 43, 0.85)' : 'rgba(255, 255, 255, 0.85)',
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
+    shadowOpacity: isDark ? 0.5 : 0.2,
     shadowRadius: 6,
     elevation: 8,
   },
   verticalStatLabel: {
-    color: 'rgba(255,255,255,0.6)',
+    color: isDark ? 'rgba(255,255,255,0.6)' : colors.onSurfaceVariant,
     fontSize: 8,
     fontWeight: 'bold',
     marginBottom: 2,
   },
   verticalStatVal: {
-    color: 'white',
+    color: isDark ? 'white' : colors.onSurface,
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -1018,19 +1022,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.2)',
-    backgroundColor: 'rgba(0, 20, 43, 0.85)',
+    borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+    backgroundColor: isDark ? 'rgba(0, 20, 43, 0.85)' : 'rgba(255, 255, 255, 0.85)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
+    shadowOpacity: isDark ? 0.5 : 0.2,
     shadowRadius: 6,
     elevation: 8,
   },
   btnStart: {
-    backgroundColor: '#002855',
+    backgroundColor: isDark ? '#002855' : colors.primaryContainer,
   },
   btnPause: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#FF3B30', // Keep pause red
   },
   centerPlayOverlay: {
     position: 'absolute',
@@ -1043,14 +1047,14 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(0, 40, 85, 0.85)',
+    backgroundColor: isDark ? 'rgba(0, 40, 85, 0.85)' : 'rgba(255, 255, 255, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.1)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.6,
+    shadowOpacity: isDark ? 0.6 : 0.2,
     shadowRadius: 10,
     elevation: 12,
   },

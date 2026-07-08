@@ -13,7 +13,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-gifted-charts';
-import { Colors, Spacing, Radii } from '../theme';
+import { Spacing, Radii } from '../theme';
+import { useTheme } from '../ThemeContext';
 import { API_BASE_URL } from '../config';
 import { SkeletonReplay } from '../components/SkeletonReplay';
 
@@ -66,6 +67,8 @@ type Analytic = {
 };
 
 export function SessionDetailScreen({ route, navigation }: any) {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors);
   const { sessionId } = route.params;
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [analytics, setAnalytics] = useState<Analytic[]>([]);
@@ -279,14 +282,12 @@ export function SessionDetailScreen({ route, navigation }: any) {
       const sortedData = Array.from(framesMap.values()).sort((a, b) => a.frame - b.frame);
       const start = sortedData.length ? sortedData[0].frame : 0;
       
-      const dataWithTempo = sortedData.map((d) => ({ ...d, tempo: (d.frame - start) / 30 }));
+      const dataWithTempo = sortedData.map((d) => ({ 
+        ...d, 
+        tempo: (d.frame - start) / 30,
+        repLabel: selectedAttemptIndex !== -1 ? `Rep ${selectedAttemptIndex + 1}` : 'Rep 1'
+      }));
       const tickMap = new Map<number, string>();
-      if (sortedData.length > 0) {
-        tickMap.set(sortedData[0].frame, 'START');
-        tickMap.set(sortedData[Math.floor(sortedData.length / 2)].frame, 'MID');
-        tickMap.set(sortedData[sortedData.length - 1].frame, 'END');
-      }
-
       return { data: dataWithTempo, tickMap };
     } else {
       let globalOffset = 0;
@@ -311,13 +312,9 @@ export function SessionDetailScreen({ route, navigation }: any) {
         const mappedMoveData = sortedMoveFrames.map((d, dIdx) => ({
           ...d,
           frame: globalOffset + dIdx,
-          tempo: (d._orig - startOrig) / 30
+          tempo: (d._orig - startOrig) / 30,
+          repLabel: `Rep ${idx + 1}`
         }));
-
-        if (mappedMoveData.length > 0) {
-          tickMap.set(mappedMoveData[0].frame, `${mappedMoveData[0].frame}`);
-          tickMap.set(mappedMoveData[Math.floor(mappedMoveData.length / 2)].frame, `Rep ${idx + 1}`);
-        }
 
         allData.push(...mappedMoveData);
         globalOffset += mappedMoveData.length + 20;
@@ -408,17 +405,47 @@ export function SessionDetailScreen({ route, navigation }: any) {
     const chartData = processedKinematics.data;
     if (!chartData || chartData.length === 0) return null;
 
-    const data1 = chartData.map(d => ({ 
-      value: isRhythm ? d.tempo : (d[group.joints[0]] || 0), 
-      label: processedKinematics.tickMap.has(d.frame) ? processedKinematics.tickMap.get(d.frame) : ''
-    }));
+    const repGroups = new Map();
+    chartData.forEach(d => {
+      if (d.repLabel) {
+        const val = isRhythm ? d.tempo : (d[group.joints[0]] || 0);
+        if (!repGroups.has(d.repLabel)) {
+           repGroups.set(d.repLabel, { startVal: val, peakDiff: 0, peakFrame: d.frame, peakVal: val });
+        } else {
+           const curr = repGroups.get(d.repLabel);
+           const diff = Math.abs(val - curr.startVal);
+           if (diff > curr.peakDiff) {
+              curr.peakDiff = diff;
+              curr.peakFrame = d.frame;
+              curr.peakVal = val;
+           }
+        }
+      }
+    });
+
+    const data1 = chartData.map(d => {
+      const val = isRhythm ? d.tempo : (d[group.joints[0]] || 0);
+      let label = '';
+      if (d.repLabel && repGroups.has(d.repLabel)) {
+         const peakInfo = repGroups.get(d.repLabel);
+         if (peakInfo.peakFrame === d.frame) {
+            const formattedVal = isRhythm ? `${val.toFixed(1)}s` : formatJointValue(group.joints[0], val);
+            label = `${d.repLabel}\n${formattedVal}`;
+         }
+      }
+      return { 
+        value: val, 
+        label: label,
+        repLabel: d.repLabel
+      };
+    });
 
     let data2;
     if (group.isBilateral && group.joints.length > 1) {
       data2 = chartData.map(d => ({ value: d[group.joints[1]] || 0 }));
     }
 
-    const color1 = group.isBilateral ? '#256b8b' : Colors.primary;
+    const color1 = group.isBilateral ? '#256b8b' : colors.primary;
     const color2 = '#FF9500';
 
     return (
@@ -443,10 +470,10 @@ export function SessionDetailScreen({ route, navigation }: any) {
                 color={color1}
                 color2={color2}
                 hideRules
-                xAxisColor={Colors.outlineVariant}
-                yAxisColor={Colors.outlineVariant}
-                yAxisTextStyle={{ color: Colors.outline, fontSize: 10 }}
-                xAxisLabelTextStyle={{ color: Colors.outline, fontSize: 10, width: 60, textAlign: 'center', marginLeft: -30 }}
+                xAxisColor={colors.outlineVariant}
+                yAxisColor={colors.outlineVariant}
+                yAxisTextStyle={{ color: colors.onSurface, fontSize: 10 }}
+                xAxisLabelTextStyle={{ color: colors.onSurface, fontSize: 10, width: 60, textAlign: 'center', marginLeft: -30 }}
                 noOfSections={4}
                 height={200}
                 spacing={35}
@@ -454,6 +481,44 @@ export function SessionDetailScreen({ route, navigation }: any) {
                 thickness={2}
                 dataPointsRadius={0}
                 scrollToEnd
+                pointerConfig={{
+                  pointerStripHeight: 200,
+                  pointerStripColor: colors.outlineVariant,
+                  pointerStripWidth: 2,
+                  pointerColor: colors.primary,
+                  radius: 4,
+                  pointerLabelWidth: 80,
+                  pointerLabelHeight: 50,
+                  autoAdjustPointerLabelPosition: true,
+                  pointerLabelComponent: (items: any) => {
+                    const item = items[0];
+                    if (!item) return null;
+                    return (
+                      <View
+                        style={{
+                          height: 50,
+                          width: 80,
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          backgroundColor: colors.surfaceContainerHighest,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: colors.outlineVariant,
+                          marginLeft: -40,
+                          marginTop: -25,
+                        }}>
+                        <Text style={{color: colors.onSurface, fontSize: 13, fontWeight: 'bold'}}>
+                          {isRhythm ? `${Number(item.value).toFixed(1)}s` : formatJointValue(group.joints[0], item.value)}
+                        </Text>
+                        {item.repLabel ? (
+                          <Text style={{color: colors.onSurfaceVariant, fontSize: 10, marginTop: 2}}>
+                            {item.repLabel}
+                          </Text>
+                        ) : null}
+                      </View>
+                    );
+                  },
+                }}
               />
             </View>
           </ScrollView>
@@ -478,7 +543,7 @@ export function SessionDetailScreen({ route, navigation }: any) {
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading session analysis...</Text>
       </SafeAreaView>
     );
@@ -487,7 +552,7 @@ export function SessionDetailScreen({ route, navigation }: any) {
   if (error || !session) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <MaterialIcons name="error-outline" size={64} color={Colors.error} />
+        <MaterialIcons name="error-outline" size={64} color={colors.error} />
         <Text style={styles.errorText}>{error || 'Session not found.'}</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backBtnText}>Go Back</Text>
@@ -503,7 +568,7 @@ export function SessionDetailScreen({ route, navigation }: any) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backIcon} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={Colors.primary} />
+          <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle} numberOfLines={1}>{session.exercise_name}</Text>
@@ -520,21 +585,21 @@ export function SessionDetailScreen({ route, navigation }: any) {
           style={[styles.tab, activeTab === 'analysis' && styles.tabActive]}
           onPress={() => setActiveTab('analysis')}
         >
-          <MaterialIcons name="analytics" size={20} color={activeTab === 'analysis' ? Colors.primary : Colors.outline} />
+          <MaterialIcons name="analytics" size={20} color={activeTab === 'analysis' ? colors.primary : colors.onSurfaceVariant} />
           <Text style={[styles.tabText, activeTab === 'analysis' && styles.tabTextActive]}>Analysis</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'log' && styles.tabActive]}
           onPress={() => setActiveTab('log')}
         >
-          <MaterialIcons name="history-edu" size={20} color={activeTab === 'log' ? Colors.primary : Colors.outline} />
+          <MaterialIcons name="history-edu" size={20} color={activeTab === 'log' ? colors.primary : colors.onSurfaceVariant} />
           <Text style={[styles.tabText, activeTab === 'log' && styles.tabTextActive]}>Attempts</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'replay' && styles.tabActive]}
           onPress={() => setActiveTab('replay')}
         >
-          <MaterialIcons name="play-circle-filled" size={20} color={activeTab === 'replay' ? Colors.primary : Colors.outline} />
+          <MaterialIcons name="play-circle-filled" size={20} color={activeTab === 'replay' ? colors.primary : colors.onSurfaceVariant} />
           <Text style={[styles.tabText, activeTab === 'replay' && styles.tabTextActive]}>Replay</Text>
         </TouchableOpacity>
       </View>
@@ -544,12 +609,12 @@ export function SessionDetailScreen({ route, navigation }: any) {
           {/* Quick Stats Grid */}
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <MaterialIcons name="ads-click" size={20} color={Colors.primary} />
+              <MaterialIcons name="ads-click" size={20} color={colors.primary} />
               <Text style={styles.statLabel}>Attempts</Text>
               <Text style={styles.statValue}>{session.attempts.length}</Text>
             </View>
             <View style={styles.statCard}>
-              <MaterialIcons name="check-circle" size={20} color={Colors.secondary} />
+              <MaterialIcons name="check-circle" size={20} color={colors.secondary} />
               <Text style={styles.statLabel}>Accuracy</Text>
               <Text style={styles.statValue}>{formatAccuracy(session.average_accuracy)}</Text>
             </View>
@@ -559,7 +624,7 @@ export function SessionDetailScreen({ route, navigation }: any) {
               <Text style={styles.statValue}>{formatDuration(session.total_duration_seconds)}</Text>
             </View>
             <View style={styles.statCard}>
-              <MaterialIcons name="warning" size={20} color={Colors.error} />
+              <MaterialIcons name="warning" size={20} color={colors.error} />
               <Text style={styles.statLabel}>Flaws</Text>
               <Text style={styles.statValue}>{session.deviations.filter(d => d.severity !== 'info').length}</Text>
             </View>
@@ -661,22 +726,22 @@ export function SessionDetailScreen({ route, navigation }: any) {
                   <LineChart
                     data={flawData}
                     areaChart
-                    startFillColor={Colors.error}
+                    startFillColor={colors.error}
                     startOpacity={0.2}
                     endOpacity={0}
-                    color={Colors.error}
+                    color={colors.error}
                     hideRules
-                    xAxisColor={Colors.outlineVariant}
-                    yAxisColor={Colors.outlineVariant}
-                    yAxisTextStyle={{ color: Colors.outline, fontSize: 10 }}
-                    xAxisLabelTextStyle={{ color: Colors.outline, fontSize: 10, width: 60, textAlign: 'center', marginLeft: -30 }}
+                    xAxisColor={colors.outlineVariant}
+                    yAxisColor={colors.outlineVariant}
+                    yAxisTextStyle={{ color: colors.onSurface, fontSize: 10 }}
+                    xAxisLabelTextStyle={{ color: colors.onSurface, fontSize: 10, width: 60, textAlign: 'center', marginLeft: -30 }}
                     noOfSections={Math.max(1, Math.max(...flawData.map(d => Number(d.value) || 0)))}
                     height={200}
                     spacing={60}
                     isAnimated
                     thickness={3}
                     dataPointsRadius={4}
-                    dataPointsColor={Colors.error}
+                    dataPointsColor={colors.error}
                     scrollToEnd
                   />
                 </View>
@@ -719,7 +784,7 @@ export function SessionDetailScreen({ route, navigation }: any) {
           )}
           ListEmptyComponent={
             <View style={styles.center}>
-              <MaterialIcons name="history" size={48} color={Colors.outlineVariant} />
+              <MaterialIcons name="history" size={48} color={colors.outlineVariant} />
               <Text style={styles.emptyText}>No attempt logs found for this session.</Text>
             </View>
           }
@@ -749,38 +814,38 @@ export function SessionDetailScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
   },
   loadingText: {
     marginTop: Spacing.md,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     fontSize: 16,
   },
   errorText: {
     marginTop: Spacing.md,
-    color: Colors.error,
+    color: colors.error,
     fontSize: 16,
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
   },
   backBtn: {
     marginTop: Spacing.lg,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: Radii.round,
   },
   backBtnText: {
-    color: Colors.onPrimary,
+    color: colors.onPrimary,
     fontWeight: 'bold',
   },
   header: {
@@ -789,7 +854,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.surfaceContainer,
+    borderBottomColor: colors.surfaceContainer,
   },
   backIcon: {
     padding: Spacing.xs,
@@ -802,15 +867,15 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: Colors.onSurface,
+    color: colors.onSurface,
   },
   headerSubtitle: {
     fontSize: 11,
-    color: Colors.outline,
+    color: colors.onSurfaceVariant,
     marginTop: 2,
   },
   tag: {
-    backgroundColor: Colors.primaryFixed,
+    backgroundColor: colors.primaryFixed,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: Radii.sm,
@@ -819,11 +884,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
     textTransform: 'uppercase',
-    color: Colors.primary,
+    color: colors.primary,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: Colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceContainerLow,
     marginHorizontal: Spacing.md,
     marginVertical: Spacing.sm,
     padding: 4,
@@ -838,7 +903,7 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
   },
   tabActive: {
-    backgroundColor: Colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceContainerLowest,
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -848,11 +913,11 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: Colors.outline,
+    color: colors.onSurfaceVariant,
     marginLeft: 6,
   },
   tabTextActive: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   content: {
     flex: 1,
@@ -869,17 +934,17 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: '48%',
-    backgroundColor: Colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceContainerLow,
     borderRadius: Radii.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.surfaceContainer,
+    borderColor: colors.primaryContainer,
   },
   statLabel: {
     fontSize: 10,
-    color: Colors.outline,
+    color: colors.onSurfaceVariant,
     textTransform: 'uppercase',
     marginTop: 6,
     fontWeight: '600',
@@ -887,13 +952,13 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.primary,
     marginTop: 2,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Colors.onSurface,
+    color: colors.onSurface,
     marginHorizontal: Spacing.md,
     marginTop: Spacing.lg,
     marginBottom: Spacing.xs,
@@ -906,16 +971,16 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   repButton: {
-    backgroundColor: Colors.surfaceContainerHighest,
+    backgroundColor: colors.surfaceContainerHighest,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: Radii.round,
     marginRight: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.surfaceContainer,
+    borderColor: colors.surfaceContainer,
   },
   repButtonActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderColor: 'transparent',
   },
   repButtonSuccess: {
@@ -929,25 +994,25 @@ const styles = StyleSheet.create({
   repButtonText: {
     fontSize: 12,
     fontWeight: 'bold',
-    color: Colors.outline,
+    color: colors.onSurfaceVariant,
   },
   repButtonTextActive: {
-    color: Colors.onPrimary,
+    color: colors.onPrimary,
   },
   repButtonTextSuccess: {
-    color: Colors.secondary,
+    color: colors.secondary,
   },
   repButtonTextFailed: {
-    color: Colors.error,
+    color: colors.error,
   },
   selectedRepCard: {
-    backgroundColor: Colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceContainerLowest,
     marginHorizontal: Spacing.md,
     marginTop: Spacing.md,
     padding: Spacing.md,
     borderRadius: Radii.md,
     borderWidth: 1,
-    borderColor: Colors.surfaceContainer,
+    borderColor: colors.primaryContainer,
   },
   cardRow: {
     flexDirection: 'row',
@@ -957,11 +1022,11 @@ const styles = StyleSheet.create({
   repCardTitle: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: Colors.onSurface,
+    color: colors.onSurface,
   },
   repCardSubtitle: {
     fontSize: 11,
-    color: Colors.outline,
+    color: colors.onSurfaceVariant,
     marginTop: 2,
   },
   statusBadge: {
@@ -981,14 +1046,14 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   badgeTextSuccess: {
-    color: Colors.secondary,
+    color: colors.secondary,
   },
   badgeTextFailed: {
-    color: Colors.error,
+    color: colors.error,
   },
   repReasonText: {
     fontSize: 13,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     marginTop: Spacing.md,
     lineHeight: 18,
   },
@@ -996,35 +1061,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   jointCard: {
-    backgroundColor: Colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceContainerLow,
     borderRadius: Radii.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.surfaceContainer,
+    borderColor: colors.primaryContainer,
   },
   jointName: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: Colors.onSurface,
+    color: colors.onSurface,
     marginBottom: Spacing.sm,
   },
   chartCard: {
-    backgroundColor: Colors.surfaceContainerLowest,
+    backgroundColor: colors.surfaceContainerLowest,
     borderRadius: Radii.md,
     padding: Spacing.md,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.surfaceContainer,
+    borderColor: colors.primaryContainer,
   },
   chartTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Colors.onSurface,
+    color: colors.onSurface,
   },
   chartSubtitle: {
     fontSize: 11,
-    color: Colors.outline,
+    color: colors.onSurfaceVariant,
     marginBottom: Spacing.md,
   },
   chartWrapper: {
@@ -1050,7 +1115,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-    color: Colors.outline,
+    color: colors.onSurfaceVariant,
   },
   deviationsSection: {
     paddingHorizontal: Spacing.md,
@@ -1066,12 +1131,12 @@ const styles = StyleSheet.create({
   perfectFormTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Colors.secondary,
+    color: colors.secondary,
     marginTop: Spacing.sm,
   },
   perfectFormSubtitle: {
     fontSize: 12,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     marginTop: 2,
     textAlign: 'center',
   },
@@ -1094,11 +1159,11 @@ const styles = StyleSheet.create({
   devMsg: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.onSurface,
+    color: colors.onSurface,
   },
   devSub: {
     fontSize: 11,
-    color: Colors.outline,
+    color: colors.onSurfaceVariant,
     marginTop: 2,
     textTransform: 'capitalize',
   },
@@ -1107,12 +1172,12 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
   },
   logCard: {
-    backgroundColor: Colors.surfaceContainerLow,
+    backgroundColor: colors.surfaceContainerLow,
     borderRadius: Radii.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.surfaceContainer,
+    borderColor: colors.primaryContainer,
   },
   logCardHeader: {
     flexDirection: 'row',
@@ -1122,17 +1187,17 @@ const styles = StyleSheet.create({
   logRepNumber: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: Colors.onSurface,
+    color: colors.onSurface,
   },
   logReasonText: {
     fontSize: 13,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     marginTop: Spacing.sm,
     lineHeight: 18,
   },
   logTimeText: {
     fontSize: 12,
-    color: Colors.outline,
+    color: colors.onSurfaceVariant,
     marginTop: Spacing.sm,
   },
   center: {
@@ -1142,7 +1207,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xxl,
   },
   emptyText: {
-    color: Colors.outlineVariant,
+    color: colors.outlineVariant,
     fontSize: 14,
     marginTop: Spacing.md,
     textAlign: 'center',

@@ -13,6 +13,18 @@ const LANDMARK_NAMES = [
   'LEFT_HEEL', 'RIGHT_HEEL', 'LEFT_FOOT_INDEX', 'RIGHT_FOOT_INDEX'
 ];
 
+const POSE_CONNECTIONS = [
+  ['LEFT_SHOULDER', 'RIGHT_SHOULDER'], ['LEFT_SHOULDER', 'LEFT_HIP'], ['RIGHT_SHOULDER', 'RIGHT_HIP'], ['LEFT_HIP', 'RIGHT_HIP'],
+  ['RIGHT_SHOULDER', 'RIGHT_ELBOW'], ['RIGHT_ELBOW', 'RIGHT_WRIST'], ['LEFT_SHOULDER', 'LEFT_ELBOW'], ['LEFT_ELBOW', 'LEFT_WRIST'],
+  ['RIGHT_HIP', 'RIGHT_KNEE'], ['RIGHT_KNEE', 'RIGHT_ANKLE'], ['LEFT_HIP', 'LEFT_KNEE'], ['LEFT_KNEE', 'LEFT_ANKLE'],
+  ['NOSE', 'LEFT_EYE_INNER'], ['LEFT_EYE_INNER', 'LEFT_EYE'], ['LEFT_EYE', 'LEFT_EYE_OUTER'], ['LEFT_EYE_OUTER', 'LEFT_EAR'],
+  ['NOSE', 'RIGHT_EYE_INNER'], ['RIGHT_EYE_INNER', 'RIGHT_EYE'], ['RIGHT_EYE', 'RIGHT_EYE_OUTER'], ['RIGHT_EYE_OUTER', 'RIGHT_EAR'],
+  ['MOUTH_LEFT', 'MOUTH_RIGHT'], ['LEFT_WRIST', 'LEFT_THUMB'], ['LEFT_WRIST', 'LEFT_INDEX'], ['LEFT_WRIST', 'LEFT_PINKY'],
+  ['LEFT_INDEX', 'LEFT_PINKY'], ['RIGHT_WRIST', 'RIGHT_THUMB'], ['RIGHT_WRIST', 'RIGHT_INDEX'], ['RIGHT_WRIST', 'RIGHT_PINKY'],
+  ['RIGHT_INDEX', 'RIGHT_PINKY'], ['LEFT_ANKLE', 'LEFT_HEEL'], ['LEFT_HEEL', 'LEFT_FOOT_INDEX'], ['LEFT_ANKLE', 'LEFT_FOOT_INDEX'],
+  ['RIGHT_ANKLE', 'RIGHT_HEEL'], ['RIGHT_HEEL', 'RIGHT_FOOT_INDEX'], ['RIGHT_ANKLE', 'RIGHT_FOOT_INDEX']
+];
+
 export interface TelemetryFrame {
   frameIndex: number;
   timeMs: number;
@@ -31,11 +43,14 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
   scrubTimeMs
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationRef = useRef<number>();
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [landmarker, setLandmarker] = useState<PoseLandmarker | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [isExtracting, setIsExtracting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [extractedData, setExtractedData] = useState<TelemetryFrame[] | null>(null);
 
   // 1. Initialize MediaPipe Model
   useEffect(() => {
@@ -76,6 +91,7 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
     if (file) {
       const url = URL.createObjectURL(file);
       setVideoUrl(url);
+      setExtractedData(null); // Reset extracted data on new video
     }
   };
 
@@ -139,11 +155,102 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
     }
 
     setIsExtracting(false);
+    setExtractedData(telemetryData);
     onExtractionComplete(telemetryData);
     
     // Reset video to start
     video.currentTime = 0;
   }, [landmarker, onExtractionComplete]);
+
+  // 4. Drawing loop
+  useEffect(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !extractedData || isExtracting) return;
+
+    const draw = () => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      canvas.width = video.clientWidth;
+      canvas.height = video.clientHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const currentTimeMs = video.currentTime * 1000;
+
+      let closestFrame = null;
+      let minDiff = Infinity;
+      // Find closest frame in extracted data
+      for (const frame of extractedData) {
+        const diff = Math.abs(frame.timeMs - currentTimeMs);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestFrame = frame;
+        }
+      }
+
+      if (closestFrame && video.videoWidth > 0 && video.videoHeight > 0) {
+        const videoRatio = video.videoWidth / video.videoHeight;
+        const elementRatio = video.clientWidth / video.clientHeight;
+        
+        let drawWidth = video.clientWidth;
+        let drawHeight = video.clientHeight;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        if (videoRatio > elementRatio) {
+          drawHeight = video.clientWidth / videoRatio;
+          offsetY = (video.clientHeight - drawHeight) / 2;
+        } else {
+          drawWidth = video.clientHeight * videoRatio;
+          offsetX = (video.clientWidth - drawWidth) / 2;
+        }
+
+        const getCoords = (lm: {x: number, y: number, visibility?: number}) => {
+          return {
+            x: offsetX + lm.x * drawWidth,
+            y: offsetY + lm.y * drawHeight,
+            visibility: lm.visibility ?? 1
+          };
+        };
+
+        // Draw skeleton lines
+        ctx.strokeStyle = '#3b82f6'; // blue-500
+        ctx.lineWidth = 2;
+        for (const [p1, p2] of POSE_CONNECTIONS) {
+          const lm1 = closestFrame.pose[p1];
+          const lm2 = closestFrame.pose[p2];
+          if (lm1 && lm2 && (lm1.visibility ?? 1) > 0.5 && (lm2.visibility ?? 1) > 0.5) {
+            const c1 = getCoords(lm1);
+            const c2 = getCoords(lm2);
+            ctx.beginPath();
+            ctx.moveTo(c1.x, c1.y);
+            ctx.lineTo(c2.x, c2.y);
+            ctx.stroke();
+          }
+        }
+
+        // Draw points
+        ctx.fillStyle = '#ef4444'; // red-500
+        for (const lm of Object.values(closestFrame.pose)) {
+          if ((lm.visibility ?? 1) > 0.5) {
+            const c = getCoords(lm);
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, 4, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        }
+      }
+
+      animationRef.current = requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
+  }, [extractedData, isExtracting]);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col gap-4">
@@ -183,16 +290,26 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
           </div>
         )}
 
-        {videoUrl ? (
+        <div
+          className="absolute inset-0 w-full h-full"
+          style={{ display: videoUrl ? 'block' : 'none' }}
+        >
           <video
             ref={videoRef}
-            src={videoUrl}
+            src={videoUrl || undefined}
             className="w-full h-full object-contain"
             controls={!isExtracting}
             onTimeUpdate={(e) => onTimeUpdate(e.currentTarget.currentTime * 1000)}
           />
-        ) : (
-          <p className="text-slate-500 text-sm">No video loaded. Upload a video to begin.</p>
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 pointer-events-none w-full h-full"
+            style={{ display: extractedData && !isExtracting ? 'block' : 'none' }}
+          />
+        </div>
+        
+        {!videoUrl && (
+          <p className="text-slate-500 text-sm z-10 relative">No video loaded. Upload a video to begin.</p>
         )}
       </div>
 
@@ -211,3 +328,4 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
     </div>
   );
 };
+

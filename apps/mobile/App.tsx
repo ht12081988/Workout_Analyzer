@@ -4,17 +4,26 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, View } from 'react-native';
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+} from '@expo-google-fonts/inter';
 
 import { LoginScreen } from './src/screens/LoginScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { TrackerScreen } from './src/screens/TrackerScreen';
 import { HistoryScreen } from './src/screens/HistoryScreen';
 import { SessionDetailScreen } from './src/screens/SessionDetailScreen';
-import { Colors } from './src/theme';
+import { ThemeProvider, useTheme } from './src/ThemeContext';
 
 const Stack = createNativeStackNavigator();
 
-export default function App() {
+function MainNavigator() {
+  const { colors, isDark } = useTheme();
   const [isReady, setIsReady] = useState(false);
   const [initialRoute, setInitialRoute] = useState('Login');
 
@@ -36,19 +45,19 @@ export default function App() {
 
   if (!isReady) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={{ flex: 1, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
     <>
-      <StatusBar style="dark" />
+      <StatusBar style={isDark ? "light" : "dark"} />
       <NavigationContainer>
         <Stack.Navigator 
           initialRouteName={initialRoute}
-          screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.surface } }}
+          screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}
         >
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Dashboard" component={DashboardScreen} />
@@ -58,5 +67,25 @@ export default function App() {
         </Stack.Navigator>
       </NavigationContainer>
     </>
+  );
+}
+
+export default function App() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
+  return (
+    <ThemeProvider>
+      <MainNavigator />
+    </ThemeProvider>
   );
 }

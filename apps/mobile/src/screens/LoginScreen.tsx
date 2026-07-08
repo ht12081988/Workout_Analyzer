@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors, Spacing, Radii } from '../theme';
+import { Spacing, Radii } from '../theme';
+import { useTheme } from '../ThemeContext';
 import { API_BASE_URL } from '../config';
 
 export function LoginScreen({ navigation }: any) {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -69,13 +72,13 @@ export function LoginScreen({ navigation }: any) {
             <TextInput
               style={styles.input}
               placeholder="athlete@performance.ai"
-              placeholderTextColor={Colors.outlineVariant}
+              placeholderTextColor={colors.outlineVariant}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
             />
-            <MaterialIcons name="mail" size={24} color={Colors.outlineVariant} style={styles.icon} />
+            <MaterialIcons name="mail" size={24} color={colors.outlineVariant} style={styles.icon} />
           </View>
         </View>
 
@@ -85,7 +88,7 @@ export function LoginScreen({ navigation }: any) {
             <TextInput
               style={styles.input}
               placeholder="Password"
-              placeholderTextColor={Colors.outlineVariant}
+              placeholderTextColor={colors.outlineVariant}
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -94,7 +97,7 @@ export function LoginScreen({ navigation }: any) {
               <MaterialIcons
                 name={showPassword ? 'visibility-off' : 'visibility'}
                 size={24}
-                color={Colors.outlineVariant}
+                color={colors.outlineVariant}
               />
             </TouchableOpacity>
           </View>
@@ -106,11 +109,11 @@ export function LoginScreen({ navigation }: any) {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color={Colors.onPrimary} />
+            <ActivityIndicator color={colors.onPrimary} />
           ) : (
             <>
               <Text style={styles.loginButtonText}>Sign In</Text>
-              <MaterialIcons name="arrow-forward" size={24} color={Colors.onPrimary} />
+              <MaterialIcons name="arrow-forward" size={24} color={colors.onPrimary} />
             </>
           )}
         </TouchableOpacity>
@@ -119,10 +122,10 @@ export function LoginScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
   },
   content: {
     flex: 1,
@@ -135,21 +138,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: Colors.onSurface,
+    color: colors.onSurface,
   },
   subtitle: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: Colors.primary,
+    color: colors.primary,
   },
   errorBox: {
-    backgroundColor: Colors.errorContainer,
+    backgroundColor: colors.errorContainer,
     padding: Spacing.md,
     borderRadius: Radii.md,
     marginBottom: Spacing.lg,
   },
   errorText: {
-    color: Colors.onErrorContainer,
+    color: colors.onErrorContainer,
     fontSize: 14,
   },
   inputContainer: {
@@ -159,7 +162,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     textTransform: 'uppercase',
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     marginBottom: Spacing.xs,
     marginLeft: Spacing.xs,
   },
@@ -169,12 +172,12 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 64,
-    backgroundColor: Colors.surfaceContainerHighest,
+    backgroundColor: colors.surfaceContainerHighest,
     borderRadius: Radii.md,
     paddingHorizontal: Spacing.lg,
     paddingRight: 60,
     fontSize: 16,
-    color: Colors.onSurface,
+    color: colors.onSurface,
   },
   icon: {
     position: 'absolute',
@@ -182,14 +185,14 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     height: 64,
-    backgroundColor: Colors.primary,
+    backgroundColor: 'black',
     borderRadius: Radii.round,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: Spacing.lg,
     elevation: 4,
-    shadowColor: Colors.primary,
+    shadowColor: 'black',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -198,7 +201,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   loginButtonText: {
-    color: Colors.onPrimary,
+    color: colors.onPrimary,
     fontSize: 18,
     fontWeight: 'bold',
     marginRight: Spacing.sm,

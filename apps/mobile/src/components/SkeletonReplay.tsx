@@ -2,7 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, Dimensions, Text, TouchableOpacity } from 'react-native';
 import Svg, { Line, Circle } from 'react-native-svg';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors, Radii, Spacing } from '../theme';
+import { Radii, Spacing } from '../theme';
+import { useTheme } from '../ThemeContext';
 
 interface FrameData {
   frame_number: number;
@@ -37,10 +38,22 @@ const POSE_CONNECTIONS = [
   ['LEFT_HEEL', 'LEFT_FOOT_INDEX'],
   ['RIGHT_HEEL', 'RIGHT_FOOT_INDEX'],
   ['LEFT_ANKLE', 'LEFT_FOOT_INDEX'],
-  ['RIGHT_ANKLE', 'RIGHT_FOOT_INDEX']
+  ['RIGHT_ANKLE', 'RIGHT_FOOT_INDEX'],
+  // Face connections
+  ['NOSE', 'LEFT_EYE'],
+  ['NOSE', 'RIGHT_EYE'],
+  ['LEFT_EYE', 'LEFT_EAR'],
+  ['RIGHT_EYE', 'RIGHT_EAR'],
+  // Arms
+  ['LEFT_SHOULDER', 'LEFT_ELBOW'],
+  ['LEFT_ELBOW', 'LEFT_WRIST'],
+  ['RIGHT_SHOULDER', 'RIGHT_ELBOW'],
+  ['RIGHT_ELBOW', 'RIGHT_WRIST']
 ];
 
 export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exerciseName, onComplete, onNext, onPrev }: SkeletonReplayProps & { exerciseName?: string }) {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0); // This is now a "virtual" frame index
   const [isPlaying, setIsPlaying] = useState(true);
   const [interpolatedLandmarks, setInterpolatedLandmarks] = useState<PoseData | null>(null);
@@ -209,7 +222,7 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
   if (!frames || frames.length === 0) {
     return (
       <View style={[styles.container, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}>
-        <MaterialIcons name="videocam-off" size={48} color={Colors.outlineVariant} />
+        <MaterialIcons name="videocam-off" size={48} color={colors.outlineVariant} />
         <Text style={styles.emptyText}>No tracking data available for this attempt</Text>
       </View>
     );
@@ -237,17 +250,46 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
               y1={p1.y}
               x2={p2.x}
               y2={p2.y}
-              stroke={Colors.primary}
+              stroke={colors.primary}
               strokeWidth="0.015"
               strokeLinecap="round"
             />
           );
         })}
+        
+        {/* Draw neck line (mid-shoulder to nose) */}
+        {(() => {
+          if (!landmarks) return null;
+          const nose = landmarks['NOSE'];
+          const lShoulder = landmarks['LEFT_SHOULDER'];
+          const rShoulder = landmarks['RIGHT_SHOULDER'];
+          if (nose && lShoulder && rShoulder && nose.visibility >= 0.5 && lShoulder.visibility >= 0.5 && rShoulder.visibility >= 0.5) {
+            const midX = (lShoulder.x + rShoulder.x) / 2;
+            const midY = (lShoulder.y + rShoulder.y) / 2;
+            return (
+              <Line
+                x1={midX}
+                y1={midY}
+                x2={nose.x}
+                y2={nose.y}
+                stroke={colors.primary}
+                strokeWidth="0.015"
+                strokeLinecap="round"
+              />
+            );
+          }
+          return null;
+        })()}
 
         {/* Draw keypoints */}
         {landmarks && Object.entries(landmarks).map(([name, point]) => {
           // Only draw main joints to avoid clutter
-          if (!['LEFT_SHOULDER', 'RIGHT_SHOULDER', 'LEFT_HIP', 'RIGHT_HIP', 'LEFT_KNEE', 'RIGHT_KNEE', 'LEFT_ANKLE', 'RIGHT_ANKLE'].includes(name)) return null;
+          if (![
+            'NOSE', 'LEFT_EYE', 'RIGHT_EYE', 'LEFT_EAR', 'RIGHT_EAR',
+            'LEFT_SHOULDER', 'RIGHT_SHOULDER', 'LEFT_ELBOW', 'RIGHT_ELBOW', 'LEFT_WRIST', 'RIGHT_WRIST',
+            'LEFT_HIP', 'RIGHT_HIP', 
+            'LEFT_KNEE', 'RIGHT_KNEE', 'LEFT_ANKLE', 'RIGHT_ANKLE'
+          ].includes(name)) return null;
           if (point.visibility < 0.5) return null;
 
           return (
@@ -255,8 +297,8 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
               key={`point-${name}`}
               cx={point.x}
               cy={point.y}
-              r="0.02"
-              fill={Colors.secondary}
+              r="0.01"
+              fill="cyan"
             />
           );
         })}
@@ -415,7 +457,7 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
           <MaterialIcons 
             name={currentFrameIndex >= maxFrameNumber ? 'replay' : isPlaying ? 'pause' : 'play-arrow'} 
             size={24} 
-            color={Colors.onPrimary} 
+            color={colors.onPrimary} 
           />
         </TouchableOpacity>
         
@@ -437,9 +479,9 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
-    backgroundColor: Colors.surfaceContainerHighest,
+    backgroundColor: colors.surfaceContainerHighest,
     borderRadius: Radii.lg,
     overflow: 'hidden',
     position: 'relative',
@@ -493,7 +535,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -509,7 +551,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     borderRadius: 2,
   },
   timeText: {
@@ -518,7 +560,7 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
   emptyText: {
-    color: Colors.outlineVariant,
+    color: colors.outlineVariant,
     marginTop: Spacing.md,
     fontSize: 14,
   },

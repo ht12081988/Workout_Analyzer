@@ -593,10 +593,10 @@ export default function SessionDetailPage() {
         </div>
 
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-          <div className="inline-flex rounded-lg bg-surface-elev p-0.5 sm:p-1 shadow-inner border border-border">
+          <div className="inline-flex rounded-full bg-surface-elev p-0.5 sm:p-1 shadow-inner border border-border">
             <button
               onClick={() => setActiveTab('performance')}
-              className={`flex items-center gap-1.5 sm:gap-2 rounded-md px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'performance'
+              className={`flex items-center gap-1.5 sm:gap-2 rounded-full px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'performance'
                 ? 'bg-surface-card text-flame shadow-sm'
                 : 'text-fg-mute hover:text-fg'
                 }`}
@@ -606,7 +606,7 @@ export default function SessionDetailPage() {
             </button>
             <button
               onClick={() => setActiveTab('attempts')}
-              className={`flex items-center gap-1.5 sm:gap-2 rounded-md px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'attempts'
+              className={`flex items-center gap-1.5 sm:gap-2 rounded-full px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'attempts'
                 ? 'bg-surface-card text-flame shadow-sm'
                 : 'text-fg-mute hover:text-fg'
                 }`}
@@ -621,7 +621,7 @@ export default function SessionDetailPage() {
                   startSessionReplay();
                 }
               }}
-              className={`flex items-center gap-1.5 sm:gap-2 rounded-md px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'replay'
+              className={`flex items-center gap-1.5 sm:gap-2 rounded-full px-2.5 py-1.5 sm:px-4 sm:py-2 transition-all ${activeTab === 'replay'
                 ? 'bg-surface-card text-flame shadow-sm'
                 : 'text-fg-mute hover:text-fg'
                 }`}
