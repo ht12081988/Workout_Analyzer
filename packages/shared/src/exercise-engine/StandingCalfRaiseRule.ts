@@ -156,6 +156,19 @@ export class StandingCalfRaiseRule {
       return { newPhase, feedback: ['Searching for feet...'], isRepCompleted, isMovementFinished: false, qualityScore: 0, angles: {} };
     }
 
+    // Ensure feet, heels, and ankles are actually visible with high confidence
+    const minVisibility = 0.5;
+    const isLAnkleVisible = lAnkle.visibility === undefined || lAnkle.visibility > minVisibility;
+    const isRAnkleVisible = rAnkle.visibility === undefined || rAnkle.visibility > minVisibility;
+    const isLHeelVisible = lHeel.visibility === undefined || lHeel.visibility > minVisibility;
+    const isRHeelVisible = rHeel.visibility === undefined || rHeel.visibility > minVisibility;
+    const isLFootVisible = lFoot.visibility === undefined || lFoot.visibility > minVisibility;
+    const isRFootVisible = rFoot.visibility === undefined || rFoot.visibility > minVisibility;
+
+    if (!isLAnkleVisible || !isRAnkleVisible || !isLHeelVisible || !isRHeelVisible || !isLFootVisible || !isRFootVisible) {
+      return { newPhase, feedback: ['Searching for feet...'], isRepCompleted, isMovementFinished: false, qualityScore: 0, angles: {} };
+    }
+
     // 1. Calculations
     const lTilt_raw = this.calculateFootTilt(lHeel, lFoot, this.baseFootLengthL);
     const rTilt_raw = this.calculateFootTilt(rHeel, rFoot, this.baseFootLengthR);
@@ -181,16 +194,23 @@ export class StandingCalfRaiseRule {
     const currentShoulderY = (lShoulder.y + rShoulder.y) / 2;
     
     let torsoAngle = 0;
+    let avgHipAngle = 180;
     if (lShoulder && rShoulder && lHip && rHip) {
       const lTorsoAngle = calculateAngle(lShoulder, lHip, { x: lHip.x, y: lHip.y - 1.0 });
       const rTorsoAngle = calculateAngle(rShoulder, rHip, { x: rHip.x, y: rHip.y - 1.0 });
       torsoAngle = (lTorsoAngle + rTorsoAngle) / 2;
+      
+      if (lKnee && rKnee) {
+        const lHipAngle = calculateAngle(lShoulder, lHip, lKnee);
+        const rHipAngle = calculateAngle(rShoulder, rHip, rKnee);
+        avgHipAngle = (lHipAngle + rHipAngle) / 2;
+      }
     }
     const frameMovement = Math.abs(currentAnkleX - this.lastAnkleX);
     this.lastAnkleX = currentAnkleX;
-
+ 
     // Auto-Calibration
-    if (!this.isCalibrated || (frameMovement < this.thresholds.CALIBRATION_MOVEMENT_MAX && avgKneeAngle > this.thresholds.CALIBRATION_KNEE_MIN && state.currentPhase === MovementPhase.START_POSITION)) {
+    if (!this.isCalibrated || (frameMovement < this.thresholds.CALIBRATION_MOVEMENT_MAX && avgKneeAngle > this.thresholds.CALIBRATION_KNEE_MIN && avgHipAngle > 150.0 && state.currentPhase === MovementPhase.START_POSITION)) {
       this.calibrationFrames++;
       if (this.calibrationFrames > this.thresholds.CALIBRATION_REQUIRED) {
         this.baseFootTilt = avgFootTilt;
@@ -266,6 +286,13 @@ export class StandingCalfRaiseRule {
               this.isAttemptLogged = true;
               this.wasAttemptFailed = true;
             }
+          } else if (avgHipAngle < 145.0) {
+            feedback.push('Stand tall');
+            if (!this.isAttemptLogged) {
+              newAttempt = { id: Math.random().toString(), timestamp: Date.now(), status: 'canceled', reason: 'Sitting/Leaning (Hip Bent)' };
+              this.isAttemptLogged = true;
+              this.wasAttemptFailed = true;
+            }
           } else if (swayAnkle > this.thresholds.SWAY_START_MAX || swayShoulder > this.thresholds.SWAY_START_MAX) {
             feedback.push(this.messages.BODY_SWAY);
             if (!this.isAttemptLogged) {
@@ -297,6 +324,15 @@ export class StandingCalfRaiseRule {
         } else if (avgKneeAngle < (this.thresholds.KNEE_BEND_MIN - this.thresholds.KNEE_FLEX_ALLOWANCE)) {
           if (!this.isAttemptLogged) {
             newAttempt = { id: Math.random().toString(), timestamp: Date.now(), status: 'canceled', reason: this.messages.KNEE_STABILITY };
+            this.isAttemptLogged = true;
+          }
+          newPhase = MovementPhase.START_POSITION;
+          this.wasAttemptFailed = true;
+          this.stillFrames = 0;
+        } else if (avgHipAngle < 140.0) {
+          feedback.push('Stand tall');
+          if (!this.isAttemptLogged) {
+            newAttempt = { id: Math.random().toString(), timestamp: Date.now(), status: 'canceled', reason: 'Sitting/Leaning (Hip Bent)' };
             this.isAttemptLogged = true;
           }
           newPhase = MovementPhase.START_POSITION;
@@ -382,7 +418,8 @@ export class StandingCalfRaiseRule {
         footTilt: this.isCalibrated ? Number((avgFootTilt - this.baseFootTilt).toFixed(1)) : 0,
         kneeAngle: avgKneeAngle,
         symmetry: tiltDiff,
-        torsoAngle: torsoAngle
+        torsoAngle: torsoAngle,
+        hipAngle: avgHipAngle
       }
     };
 
