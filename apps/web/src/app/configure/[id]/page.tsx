@@ -50,7 +50,7 @@ export default function AthleteConfigurationPage() {
 
   // 1. Fetch Exercises to find the selected one
   useEffect(() => {
-    fetch('http://localhost:5002/exercises')
+    fetch('/api/exercises')
       .then(res => res.json())
       .then(data => {
         const exercisesData = Array.isArray(data) ? data : (data?.data || []);
@@ -70,7 +70,7 @@ export default function AthleteConfigurationPage() {
   useEffect(() => {
     if (!selectedExercise || !athleteId) return;
     setLoadingRules(true);
-    fetch(`http://localhost:5002/exercises/${selectedExercise.id}/rules?mode=self&customer_id=${athleteId}`)
+    fetch(`/api/exercises/${selectedExercise.id}/rules?mode=self&customer_id=${athleteId}`)
       .then(res => res.json())
       .then(data => {
         let rulesArr = Array.isArray(data) ? data : (data?.data || []);
@@ -104,7 +104,7 @@ export default function AthleteConfigurationPage() {
           customer_id: athleteId
         };
         
-        return fetch('http://localhost:5002/athlete/rules', {
+        return fetch('/api/athlete/rules', {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -130,7 +130,7 @@ export default function AthleteConfigurationPage() {
 
   const handleLoadDefaults = async () => {
     try {
-      const res = await fetch(`http://localhost:5002/exercises/${selectedExercise.id}/rules`);
+      const res = await fetch(`/api/exercises/${selectedExercise.id}/rules`);
       const data = await res.json();
       let rulesArr = Array.isArray(data) ? data : (data?.data || []);
       rulesArr = rulesArr.sort((a: any, b: any) => {
