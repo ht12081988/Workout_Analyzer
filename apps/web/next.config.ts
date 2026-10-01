@@ -5,13 +5,15 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@workout/shared'],
   allowedDevOrigins: ['*.ngrok-free.app'],
   async rewrites() {
-    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:5002';
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${backendUrl}/:path*`,
-      },
-    ];
+    if (process.env.NODE_ENV === 'development') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: 'http://127.0.0.1:5002/:path*',
+        },
+      ];
+    }
+    return [];
   },
 };
 
