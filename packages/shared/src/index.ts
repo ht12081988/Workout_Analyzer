@@ -23,4 +23,7 @@ export * from './exercise-engine/StandingCalfRaiseRule';
 export * from './exercise-engine/SplitLungeRule';
 export * from './exercise-engine/PlieSquatRule';
 export * from './exercise-engine/DynamicRule';
+export * from './exercise-engine/TrajectoryRule';
+export * from './exercise-engine/dtw-utils';
 export * from './exercise-engine/SpeechManager';
+export * from './exercise-engine/metric-prediction';

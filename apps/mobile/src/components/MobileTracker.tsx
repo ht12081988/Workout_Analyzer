@@ -45,7 +45,22 @@ const POSE_CONNECTIONS = [
   ['LEFT_HEEL', 'LEFT_FOOT_INDEX'],
   ['RIGHT_HEEL', 'RIGHT_FOOT_INDEX'],
   ['LEFT_ANKLE', 'LEFT_FOOT_INDEX'],
-  ['RIGHT_ANKLE', 'RIGHT_FOOT_INDEX']
+  ['RIGHT_ANKLE', 'RIGHT_FOOT_INDEX'],
+
+  // Arms & Hand Connections
+  ['LEFT_SHOULDER', 'LEFT_ELBOW'],
+  ['LEFT_ELBOW', 'LEFT_WRIST'],
+  ['LEFT_WRIST', 'LEFT_INDEX'],
+  ['LEFT_WRIST', 'LEFT_PINKY'],
+  ['LEFT_WRIST', 'LEFT_THUMB'],
+  ['LEFT_PINKY', 'LEFT_INDEX'],
+
+  ['RIGHT_SHOULDER', 'RIGHT_ELBOW'],
+  ['RIGHT_ELBOW', 'RIGHT_WRIST'],
+  ['RIGHT_WRIST', 'RIGHT_INDEX'],
+  ['RIGHT_WRIST', 'RIGHT_PINKY'],
+  ['RIGHT_WRIST', 'RIGHT_THUMB'],
+  ['RIGHT_PINKY', 'RIGHT_INDEX']
 ];
 
 const ALL_LANDMARKS = [
@@ -298,15 +313,17 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
       const asc1Ms = topMs + (endMs - topMs) * 0.33;
       const asc2Ms = topMs + (endMs - topMs) * 0.66;
 
-      const keyFrames = [
-        { type: 'start', landmarks: stats.startFrameLandmarks, angles: stats.startFrameAngles, frameNumber: getFrameNumber(startMs), timestamp: stats.startTime },
-        ...(stats.descendingFrame1Landmarks ? [{ type: 'desc_1', landmarks: stats.descendingFrame1Landmarks, angles: stats.descendingFrame1Angles, frameNumber: getFrameNumber(desc1Ms), timestamp: new Date(desc1Ms).toISOString() }] : []),
-        ...(stats.descendingFrame2Landmarks ? [{ type: 'desc_2', landmarks: stats.descendingFrame2Landmarks, angles: stats.descendingFrame2Angles, frameNumber: getFrameNumber(desc2Ms), timestamp: new Date(desc2Ms).toISOString() }] : []),
-        ...(stats.topFrameLandmarks ? [{ type: 'top', landmarks: stats.topFrameLandmarks, angles: stats.topFrameAngles, frameNumber: getFrameNumber(topMs), timestamp: stats.topTime }] : []),
-        ...(stats.ascendingFrame1Landmarks ? [{ type: 'asc_1', landmarks: stats.ascendingFrame1Landmarks, angles: stats.ascendingFrame1Angles, frameNumber: getFrameNumber(asc1Ms), timestamp: new Date(asc1Ms).toISOString() }] : []),
-        ...(stats.ascendingFrame2Landmarks ? [{ type: 'asc_2', landmarks: stats.ascendingFrame2Landmarks, angles: stats.ascendingFrame2Angles, frameNumber: getFrameNumber(asc2Ms), timestamp: new Date(asc2Ms).toISOString() }] : []),
-        { type: 'end', landmarks: stats.endFrameLandmarks, angles: stats.endFrameAngles, frameNumber: getFrameNumber(endMs), timestamp: stats.endTime }
-      ];
+      const keyFrames = (stats.phaseFrames && stats.phaseFrames.length > 0)
+        ? stats.phaseFrames
+        : [
+            { type: 'start', landmarks: stats.startFrameLandmarks, angles: stats.startFrameAngles, frameNumber: getFrameNumber(startMs), timestamp: stats.startTime },
+            ...(stats.descendingFrame1Landmarks ? [{ type: 'desc_1', landmarks: stats.descendingFrame1Landmarks, angles: stats.descendingFrame1Angles, frameNumber: getFrameNumber(desc1Ms), timestamp: new Date(desc1Ms).toISOString() }] : []),
+            ...(stats.descendingFrame2Landmarks ? [{ type: 'desc_2', landmarks: stats.descendingFrame2Landmarks, angles: stats.descendingFrame2Angles, frameNumber: getFrameNumber(desc2Ms), timestamp: new Date(desc2Ms).toISOString() }] : []),
+            ...(stats.topFrameLandmarks ? [{ type: 'top', landmarks: stats.topFrameLandmarks, angles: stats.topFrameAngles, frameNumber: getFrameNumber(topMs), timestamp: stats.topTime }] : []),
+            ...(stats.ascendingFrame1Landmarks ? [{ type: 'asc_1', landmarks: stats.ascendingFrame1Landmarks, angles: stats.ascendingFrame1Angles, frameNumber: getFrameNumber(asc1Ms), timestamp: new Date(asc1Ms).toISOString() }] : []),
+            ...(stats.ascendingFrame2Landmarks ? [{ type: 'asc_2', landmarks: stats.ascendingFrame2Landmarks, angles: stats.ascendingFrame2Angles, frameNumber: getFrameNumber(asc2Ms), timestamp: new Date(asc2Ms).toISOString() }] : []),
+            { type: 'end', landmarks: stats.endFrameLandmarks, angles: stats.endFrameAngles, frameNumber: getFrameNumber(endMs), timestamp: stats.endTime }
+          ];
 
       for (const frame of keyFrames) {
         await fetch(`${API_BASE_URL}/sessions/${sid}/frames`, {

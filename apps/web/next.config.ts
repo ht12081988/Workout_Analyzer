@@ -5,7 +5,12 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@workout/shared'],
   allowedDevOrigins: ['*.ngrok-free.app'],
   async rewrites() {
-    return [];
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://127.0.0.1:5002/:path*',
+      },
+    ];
   },
 };
 

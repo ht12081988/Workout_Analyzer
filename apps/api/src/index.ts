@@ -9,7 +9,8 @@ const app = express();
 const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 app.use((req, res, next) => {
   console.log(`[API] ${req.method} ${req.url} - IP: ${req.ip}`);
@@ -284,7 +285,7 @@ app.get('/sessions', async (req, res) => {
         e.name as exercise_name,
         e.category as exercise_category,
         e.subcategory as exercise_subcategory,
-        (SELECT COUNT(*)::int FROM workout_attempts wa WHERE wa.session_id = s.id) as total_attempts
+        (SELECT COUNT(*)::int FROM workout_attempts wa WHERE wa.session_id = s.id AND wa.status != 'phase_complete') as total_attempts
       FROM workout_sessions s
       JOIN exercises e ON s.exercise_id = e.id
       WHERE s.customer_id = $1
@@ -320,10 +321,10 @@ app.get('/sessions/:id', async (req, res) => {
       ORDER BY rep_number ASC
     `, [req.params.id]);
 
-    // 3. Get attempts
+    // 3. Get attempts (exclude any legacy phase_complete logs)
     const attemptsResult = await query(`
       SELECT * FROM workout_attempts 
-      WHERE session_id = $1 
+      WHERE session_id = $1 AND status != 'phase_complete'
       ORDER BY created_at ASC
     `, [req.params.id]);
 
@@ -425,6 +426,9 @@ app.post('/sessions/:id/frames', async (req, res) => {
 
 app.post('/sessions/:id/attempts', async (req, res) => {
   const { exercise_id, status, reason } = req.body;
+  if (status === 'phase_complete') {
+    return res.json({ status: 'ignored', message: 'Phase completion is not an attempt' });
+  }
   try {
     const result = await query(
       'INSERT INTO workout_attempts (session_id, exercise_id, status, reason) VALUES ($1, $2, $3, $4) RETURNING id',
@@ -466,20 +470,20 @@ app.get('/sessions/:id/angles', async (req, res) => {
 app.get('/admin/exercises', async (req, res) => {
   try {
     const result = await query(`
-      SELECT
-        id,
-        name,
-        description,
-        category,
-        subcategory,
-        image_path,
-        video_path,
-        camera_angle,
-        status,
-        created_at
-      FROM exercises
-      WHERE (is_deleted = false OR is_deleted IS NULL)
-      ORDER BY created_at ASC
+      SELECT 
+        id, 
+        name, 
+        description, 
+        category, 
+        subcategory, 
+        image_path, 
+        video_path, 
+        camera_angle, 
+        status, 
+        created_at 
+      FROM exercises 
+      WHERE (is_deleted = false OR is_deleted IS NULL) 
+      ORDER BY created_at DESC
     `);
     res.json(result.rows);
   } catch (error) {
@@ -488,9 +492,9 @@ app.get('/admin/exercises', async (req, res) => {
 });
 
 app.post('/admin/exercises', async (req, res) => {
-  const { name, description, dynamicProfile, category, subcategory, camera_angle, image_path, video_path } = req.body;
-  if (!name || !dynamicProfile) {
-    return res.status(400).json({ status: 'error', message: 'Name and dynamicProfile are required' });
+  const { name, description, dynamicProfile, trajectoryProfile, category, subcategory, camera_angle, image_path, video_path } = req.body;
+  if (!name || (!dynamicProfile && !trajectoryProfile)) {
+    return res.status(400).json({ status: 'error', message: 'Name and a profile (dynamicProfile or trajectoryProfile) are required' });
   }
 
   try {
@@ -500,13 +504,23 @@ app.post('/admin/exercises', async (req, res) => {
     );
     const exerciseId = exerciseResult.rows[0].id;
 
-    await query(
-      'INSERT INTO exercise_pose_rules (exercise_id, rule_name, rule_type, threshold_value, exercise_name, creator_type) VALUES ($1, $2, $3, $4, $5, $6)',
-      [exerciseId, 'DYNAMIC_PROFILE', 'custom', JSON.stringify(dynamicProfile), name, 'system']
-    );
+    if (trajectoryProfile) {
+      await query(
+        'INSERT INTO exercise_pose_rules (exercise_id, rule_name, rule_type, threshold_value, exercise_name, creator_type) VALUES ($1, $2, $3, $4, $5, $6)',
+        [exerciseId, 'TRAJECTORY_PROFILE', 'trajectory', JSON.stringify(trajectoryProfile), name, 'system']
+      );
+    } else if (dynamicProfile) {
+      await query(
+        'INSERT INTO exercise_pose_rules (exercise_id, rule_name, rule_type, threshold_value, exercise_name, creator_type) VALUES ($1, $2, $3, $4, $5, $6)',
+        [exerciseId, 'DYNAMIC_PROFILE', 'custom', JSON.stringify(dynamicProfile), name, 'system']
+      );
+    }
 
     res.json({ status: 'success', exercise_id: exerciseId });
   } catch (error) {
+    if ((error as any).code === '23505') {
+      return res.status(400).json({ status: 'error', message: 'An exercise with this name already exists. Please choose a different name.' });
+    }
     res.status(500).json({ status: 'error', message: (error as Error).message });
   }
 });
@@ -526,9 +540,9 @@ app.delete('/admin/exercises/:id', async (req, res) => {
 app.put('/admin/exercises/:id', async (req, res) => {
   console.log("PUT /admin/exercises/:id invoked. Params:", req.params);
   console.log("Body:", req.body);
-  const { name, description, dynamicProfile, category, subcategory, camera_angle, image_path, video_path } = req.body;
-  if (!dynamicProfile) {
-    return res.status(400).json({ status: 'error', message: 'dynamicProfile is required' });
+  const { name, description, dynamicProfile, trajectoryProfile, trackingMode, category, subcategory, camera_angle, image_path, video_path } = req.body;
+  if (!dynamicProfile && !trajectoryProfile && name === undefined && description === undefined) {
+    return res.status(400).json({ status: 'error', message: 'Profile or exercise details required' });
   }
 
   try {
@@ -539,20 +553,48 @@ app.put('/admin/exercises/:id', async (req, res) => {
       );
     }
 
-    const existing = await query('SELECT id FROM exercise_pose_rules WHERE exercise_id = $1 AND rule_name = $2 AND creator_type = $3', [req.params.id, 'DYNAMIC_PROFILE', 'system']);
-    
-    if (existing.rows.length > 0) {
-      await query(
-        'UPDATE exercise_pose_rules SET threshold_value = $1 WHERE id = $2',
-        [JSON.stringify(dynamicProfile), existing.rows[0].id]
-      );
-    } else {
-      const exResult = await query('SELECT name FROM exercises WHERE id = $1', [req.params.id]);
-      if (exResult.rows.length > 0) {
+    const exResult = await query('SELECT name FROM exercises WHERE id = $1', [req.params.id]);
+    const exName = exResult.rows.length > 0 ? exResult.rows[0].name : name || '';
+
+    // Handle Trajectory Profile
+    if (trajectoryProfile !== undefined) {
+      const existingTraj = await query('SELECT id FROM exercise_pose_rules WHERE exercise_id = $1 AND rule_name = $2 AND creator_type = $3', [req.params.id, 'TRAJECTORY_PROFILE', 'system']);
+      if (existingTraj.rows.length > 0) {
+        await query(
+          'UPDATE exercise_pose_rules SET threshold_value = $1, exercise_name = $2 WHERE id = $3',
+          [JSON.stringify(trajectoryProfile), exName, existingTraj.rows[0].id]
+        );
+      } else {
         await query(
           'INSERT INTO exercise_pose_rules (exercise_id, rule_name, rule_type, threshold_value, exercise_name, creator_type) VALUES ($1, $2, $3, $4, $5, $6)',
-          [req.params.id, 'DYNAMIC_PROFILE', 'custom', JSON.stringify(dynamicProfile), exResult.rows[0].name, 'system']
+          [req.params.id, 'TRAJECTORY_PROFILE', 'trajectory', JSON.stringify(trajectoryProfile), exName, 'system']
         );
+      }
+
+      // If user explicitly chose trajectory mode, remove DYNAMIC_PROFILE to avoid ambiguity
+      if (trackingMode === 'trajectory') {
+        await query('DELETE FROM exercise_pose_rules WHERE exercise_id = $1 AND rule_name = $2 AND creator_type = $3', [req.params.id, 'DYNAMIC_PROFILE', 'system']);
+      }
+    }
+
+    // Handle Dynamic Profile
+    if (dynamicProfile !== undefined) {
+      const existingDyn = await query('SELECT id FROM exercise_pose_rules WHERE exercise_id = $1 AND rule_name = $2 AND creator_type = $3', [req.params.id, 'DYNAMIC_PROFILE', 'system']);
+      if (existingDyn.rows.length > 0) {
+        await query(
+          'UPDATE exercise_pose_rules SET threshold_value = $1, exercise_name = $2 WHERE id = $3',
+          [JSON.stringify(dynamicProfile), exName, existingDyn.rows[0].id]
+        );
+      } else {
+        await query(
+          'INSERT INTO exercise_pose_rules (exercise_id, rule_name, rule_type, threshold_value, exercise_name, creator_type) VALUES ($1, $2, $3, $4, $5, $6)',
+          [req.params.id, 'DYNAMIC_PROFILE', 'custom', JSON.stringify(dynamicProfile), exName, 'system']
+        );
+      }
+
+      // If user explicitly chose phases mode, remove TRAJECTORY_PROFILE
+      if (trackingMode === 'phases') {
+        await query('DELETE FROM exercise_pose_rules WHERE exercise_id = $1 AND rule_name = $2 AND creator_type = $3', [req.params.id, 'TRAJECTORY_PROFILE', 'system']);
       }
     }
 
@@ -681,7 +723,7 @@ app.get('/trainer/:id/athletes/:customer_id/sessions', async (req, res) => {
         COALESCE(NULLIF(s.average_accuracy, 0), (SELECT COALESCE(AVG(quality_score), 0)::numeric(5,2) FROM workout_rep_logs wr WHERE wr.session_id = s.id)) as average_accuracy,
         COALESCE(NULLIF(s.total_duration_seconds, 0), EXTRACT(EPOCH FROM (COALESCE(s.end_time, (SELECT MAX(created_at) FROM workout_attempts wa WHERE wa.session_id = s.id), s.start_time) - s.start_time))::int) as total_duration_seconds,
         e.name as exercise_name,
-        (SELECT COUNT(*)::int FROM workout_attempts wa WHERE wa.session_id = s.id) as total_attempts
+        (SELECT COUNT(*)::int FROM workout_attempts wa WHERE wa.session_id = s.id AND wa.status != 'phase_complete') as total_attempts
       FROM workout_sessions s 
       JOIN exercises e ON s.exercise_id = e.id 
       WHERE s.customer_id = $2 AND s.recorded_mode = 'trainer' AND s.trainer_id = $1
@@ -692,7 +734,8 @@ app.get('/trainer/:id/athletes/:customer_id/sessions', async (req, res) => {
     res.status(500).json({ status: 'error', message: (error as Error).message });
   }
 });
-app.get('/trainer/:id/sessions', async (req, res) => {
+
+app.get('/trainer/:id/sessions', async (req, res) => {
   try {
     const result = await query(`
       SELECT 
@@ -704,7 +747,7 @@ app.get('/trainer/:id/athletes/:customer_id/sessions', async (req, res) => {
         e.category as category,
         c.name as athlete_name,
         c.email as athlete_email,
-        (SELECT COUNT(*)::int FROM workout_attempts wa WHERE wa.session_id = s.id) as total_attempts
+        (SELECT COUNT(*)::int FROM workout_attempts wa WHERE wa.session_id = s.id AND wa.status != 'phase_complete') as total_attempts
       FROM workout_sessions s 
       JOIN exercises e ON s.exercise_id = e.id 
       JOIN customers c ON s.customer_id = c.id

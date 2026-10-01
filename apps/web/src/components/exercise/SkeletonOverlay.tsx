@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { PoseData } from '@workout/shared';
+import { PoseData, DynamicRule } from '@workout/shared';
 
 interface SkeletonOverlayProps {
   pose: PoseData | null;
@@ -34,6 +34,16 @@ const POSE_CONNECTIONS = [
   ['RIGHT_ANKLE', 'RIGHT_HEEL'],
   ['RIGHT_ANKLE', 'RIGHT_FOOT_INDEX'],
   ['RIGHT_HEEL', 'RIGHT_FOOT_INDEX'],
+
+  // Hand / Palm Connections
+  ['LEFT_WRIST', 'LEFT_INDEX'],
+  ['LEFT_WRIST', 'LEFT_PINKY'],
+  ['LEFT_WRIST', 'LEFT_THUMB'],
+  ['LEFT_PINKY', 'LEFT_INDEX'],
+  ['RIGHT_WRIST', 'RIGHT_INDEX'],
+  ['RIGHT_WRIST', 'RIGHT_PINKY'],
+  ['RIGHT_WRIST', 'RIGHT_THUMB'],
+  ['RIGHT_PINKY', 'RIGHT_INDEX'],
 ];
 
 const LEFT_SIDE_COLOR = '#39FF14'; // Neon Green
@@ -271,6 +281,191 @@ export const SkeletonOverlay: React.FC<SkeletonOverlayProps> = ({
           ctx.fillText(text, x, y + 2); // +2 for visual baseline alignment
         }
       });
+
+      // Left Hip Abduction Angle Display
+      const leftHipLm = smoothedPose['LEFT_HIP'];
+      const leftKneeLm = smoothedPose['LEFT_KNEE'];
+      if (
+        leftHipLm && leftKneeLm &&
+        (leftHipLm.visibility || 0) > 0.4 &&
+        (leftKneeLm.visibility || 0) > 0.4
+      ) {
+        const leftHipAbd = DynamicRule.calculateMetric('LEFT_HIP_ABDUCTION', smoothedPose);
+        const ptHip = getCanvasPoint(leftHipLm);
+        const ptKnee = getCanvasPoint(leftKneeLm);
+
+        // Position on the lateral (outer) side of the left thigh
+        const midThighX = (ptHip.x + ptKnee.x) / 2;
+        const midThighY = (ptHip.y + ptKnee.y) / 2;
+        const x = midThighX - 85;
+        const y = midThighY;
+
+        const text = `ABD ${Math.round(leftHipAbd)}°`;
+        ctx.font = 'bold 20px Inter, sans-serif';
+        const textWidth = ctx.measureText(text).width;
+        const rectWidth = textWidth + 14;
+        const rectHeight = 28;
+
+        // Draw background pill
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(x - rectWidth / 2, y - rectHeight / 2, rectWidth, rectHeight, 8);
+        } else {
+          ctx.rect(x - rectWidth / 2, y - rectHeight / 2, rectWidth, rectHeight);
+        }
+        ctx.fill();
+
+        // Subtle glowing neon border
+        ctx.strokeStyle = 'rgba(57, 255, 20, 0.4)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // Draw Text
+        ctx.fillStyle = '#39FF14'; // Neon Green
+        ctx.fillText(text, x, y + 2);
+      }
+
+      // Right Hip Abduction Angle Display (when active)
+      const rightHipLm = smoothedPose['RIGHT_HIP'];
+      const rightKneeLm = smoothedPose['RIGHT_KNEE'];
+      if (
+        rightHipLm && rightKneeLm &&
+        (rightHipLm.visibility || 0) > 0.4 &&
+        (rightKneeLm.visibility || 0) > 0.4
+      ) {
+        const rightHipAbd = DynamicRule.calculateMetric('RIGHT_HIP_ABDUCTION', smoothedPose);
+        if (rightHipAbd > 5) {
+          const ptRHip = getCanvasPoint(rightHipLm);
+          const ptRKnee = getCanvasPoint(rightKneeLm);
+
+          const midRThighX = (ptRHip.x + ptRKnee.x) / 2;
+          const midRThighY = (ptRHip.y + ptRKnee.y) / 2;
+          const xR = midRThighX + 85;
+          const yR = midRThighY;
+
+          const textR = `ABD ${Math.round(rightHipAbd)}°`;
+          ctx.font = 'bold 20px Inter, sans-serif';
+          const textWidthR = ctx.measureText(textR).width;
+          const rectWidthR = textWidthR + 14;
+          const rectHeightR = 28;
+
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(xR - rectWidthR / 2, yR - rectHeightR / 2, rectWidthR, rectHeightR, 8);
+          } else {
+            ctx.rect(xR - rectWidthR / 2, yR - rectHeightR / 2, rectWidthR, rectHeightR);
+          }
+          ctx.fill();
+
+          ctx.strokeStyle = 'rgba(57, 255, 20, 0.4)';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+
+          ctx.fillStyle = '#39FF14';
+          ctx.fillText(textR, xR, yR + 2);
+        }
+      }
+
+      // Knee Outside Hand (Fire Hydrant Clearance) Display
+      const leftWristLm = smoothedPose['LEFT_WRIST'];
+      if (
+        leftWristLm && leftKneeLm && leftHipLm &&
+        (leftWristLm.visibility || 0) > 0.3 &&
+        (leftKneeLm.visibility || 0) > 0.3
+      ) {
+        const kneeOutsideRatio = DynamicRule.calculateMetric('LEFT_KNEE_OUTSIDE_HAND_RATIO', smoothedPose);
+        const ptWrist = getCanvasPoint(leftWristLm);
+        const ptKnee = getCanvasPoint(leftKneeLm);
+        const ptHip = getCanvasPoint(leftHipLm);
+
+        // Check if user is in quadruped / all-fours (wrist and knee on or near floor plane)
+        const isQuadruped = Math.abs(ptWrist.y - ptKnee.y) < height * 0.45;
+
+        if (isQuadruped) {
+          ctx.save();
+          const isCleared = kneeOutsideRatio >= 0.10;
+          const isPositive = kneeOutsideRatio > 0;
+
+          // Color based on clearance: Neon Green if cleared, Amber if slight, Muted White if in-line
+          const guideColor = isCleared
+            ? '#39FF14'
+            : isPositive
+              ? '#FFB800'
+              : 'rgba(255, 255, 255, 0.45)';
+
+          // 1. Draw Hand Line Guide extending from planted Left Wrist straight back
+          ctx.strokeStyle = guideColor;
+          ctx.lineWidth = isCleared ? 2.5 : 1.5;
+          ctx.setLineDash(isCleared ? [] : [6, 4]);
+
+          ctx.beginPath();
+          ctx.moveTo(ptWrist.x, ptWrist.y);
+          // Hand line passes straight back along the torso axis
+          const dirX = ptHip.x - ptWrist.x;
+          const dirY = ptHip.y - ptWrist.y;
+          const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+          const extX = ptWrist.x + (dirX / len) * (len * 1.3);
+          const extY = ptWrist.y + (dirY / len) * (len * 1.3);
+          ctx.lineTo(extX, extY);
+          ctx.stroke();
+
+          // 2. Lateral offset connector line between knee and hand line
+          if (isPositive) {
+            ctx.strokeStyle = isCleared ? 'rgba(57, 255, 20, 0.7)' : 'rgba(255, 184, 0, 0.6)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(ptKnee.x, ptKnee.y);
+            // Nearest point along the hand line projection
+            const uX = dirX / len;
+            const uY = dirY / len;
+            const wToKneeX = ptKnee.x - ptWrist.x;
+            const wToKneeY = ptKnee.y - ptWrist.y;
+            const projLen = wToKneeX * uX + wToKneeY * uY;
+            const projX = ptWrist.x + uX * projLen;
+            const projY = ptWrist.y + uY * projLen;
+            ctx.lineTo(projX, projY);
+            ctx.stroke();
+          }
+
+          // 3. Floating Clearance Badge near the knee
+          const pct = Math.round(kneeOutsideRatio * 100);
+          const badgeText = isCleared
+            ? `OUTSIDE HAND +${pct}%`
+            : isPositive
+              ? `CLEARING +${pct}%`
+              : `IN-LINE WITH HAND`;
+
+          const badgeX = ptKnee.x - 80;
+          const badgeY = ptKnee.y + 26;
+
+          ctx.font = 'bold 12px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const badgeWidth = ctx.measureText(badgeText).width + 16;
+          const badgeHeight = 22;
+
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(badgeX - badgeWidth / 2, badgeY - badgeHeight / 2, badgeWidth, badgeHeight, 6);
+          } else {
+            ctx.rect(badgeX - badgeWidth / 2, badgeY - badgeHeight / 2, badgeWidth, badgeHeight);
+          }
+          ctx.fill();
+
+          ctx.strokeStyle = guideColor;
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+
+          ctx.fillStyle = guideColor;
+          ctx.fillText(badgeText, badgeX, badgeY + 1);
+
+          ctx.restore();
+        }
+      }
     }
 
   }, [pose, width, height, videoSize, smoothing, showAngles]);

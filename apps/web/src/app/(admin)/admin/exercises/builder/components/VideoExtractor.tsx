@@ -35,22 +35,32 @@ interface VideoExtractorProps {
   onExtractionComplete: (telemetry: TelemetryFrame[]) => void;
   onTimeUpdate: (timeMs: number) => void;
   scrubTimeMs?: number; // Allows parent to scrub the video
+  initialVideoUrl?: string;
+  onVideoChange?: (url: string) => void;
 }
 
 export const VideoExtractor: React.FC<VideoExtractorProps> = ({
   onExtractionComplete,
   onTimeUpdate,
-  scrubTimeMs
+  scrubTimeMs,
+  initialVideoUrl,
+  onVideoChange
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(initialVideoUrl || null);
   const [landmarker, setLandmarker] = useState<PoseLandmarker | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [isExtracting, setIsExtracting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [extractedData, setExtractedData] = useState<TelemetryFrame[] | null>(null);
+
+  useEffect(() => {
+    if (initialVideoUrl && initialVideoUrl !== videoUrl) {
+      setVideoUrl(initialVideoUrl);
+    }
+  }, [initialVideoUrl]);
 
   // 1. Initialize MediaPipe Model
   useEffect(() => {
@@ -92,6 +102,9 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
       const url = URL.createObjectURL(file);
       setVideoUrl(url);
       setExtractedData(null); // Reset extracted data on new video
+      if (onVideoChange) {
+        onVideoChange(url);
+      }
     }
   };
 
@@ -253,40 +266,41 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
   }, [extractedData, isExtracting]);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col gap-4">
-      <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-        <h3 className="text-sm tracking-wider font-extrabold text-slate-200 uppercase flex items-center gap-2">
-          <span className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse"></span>
-          Step 1: Video Extraction Engine
+    <div className="bg-surface-raised border border-border/70 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+      <div className="flex justify-between items-center border-b border-border/60 pb-2.5">
+        <h3 className="text-xs tracking-wider font-extrabold text-fg uppercase flex items-center gap-2">
+          <span className="w-2 h-2 bg-flame rounded-full animate-pulse"></span>
+          Video Reference Indicator
         </h3>
         
         {!videoUrl && (
-          <label className="bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 px-3 py-1.5 rounded cursor-pointer transition">
-            Upload Golden Rep Video
+          <label className="bg-surface-elev hover:bg-surface-card text-[11px] font-bold text-fg border border-border px-3 py-1 rounded-xl cursor-pointer transition shadow-sm flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">upload</span>
+            Upload Video
             <input type="file" accept="video/mp4,video/webm" className="hidden" onChange={handleFileUpload} />
           </label>
         )}
       </div>
 
-      <div className="relative w-full aspect-video bg-black rounded-lg border border-slate-800 overflow-hidden flex items-center justify-center">
+      <div className="relative w-full aspect-video bg-black rounded-xl border border-border/80 overflow-hidden flex items-center justify-center">
         {isModelLoading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-20">
-            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2" />
-            <p className="text-blue-400 font-bold text-xs uppercase">Loading Vision AI...</p>
+            <div className="w-8 h-8 border-4 border-flame border-t-transparent rounded-full animate-spin mb-2" />
+            <p className="text-flame font-bold text-xs uppercase">Loading Vision AI...</p>
           </div>
         )}
 
         {isExtracting && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 z-20 backdrop-blur-sm">
-            <div className="text-4xl mb-2">⚙️</div>
-            <p className="text-blue-400 font-bold text-sm uppercase mb-3">Extracting Biomechanics</p>
-            <div className="w-64 h-2 bg-slate-800 rounded-full overflow-hidden">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 z-20 backdrop-blur-sm">
+            <div className="text-3xl mb-1.5">⚙️</div>
+            <p className="text-flame font-bold text-xs uppercase mb-2">Extracting Biomechanics</p>
+            <div className="w-48 h-1.5 bg-surface-elev rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-100" 
+                className="h-full bg-gradient-to-r from-flame to-flame-2 transition-all duration-100" 
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-slate-400 text-xs mt-2">{progress}% Complete</p>
+            <p className="text-fg-mute text-[10px] mt-1.5">{progress}% Complete</p>
           </div>
         )}
 
@@ -309,19 +323,23 @@ export const VideoExtractor: React.FC<VideoExtractorProps> = ({
         </div>
         
         {!videoUrl && (
-          <p className="text-slate-500 text-sm z-10 relative">No video loaded. Upload a video to begin.</p>
+          <p className="text-fg-mute text-xs z-10 relative">No video loaded. Upload a video to begin.</p>
         )}
       </div>
 
       {videoUrl && !isExtracting && (
-        <div className="flex justify-between items-center">
-          <p className="text-xs text-slate-400">Video loaded successfully.</p>
+        <div className="flex flex-wrap justify-between items-center gap-2 pt-0.5">
+          <p className="text-[11px] text-fg-mute flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            Video loaded
+          </p>
           <button 
             onClick={startExtraction}
             disabled={isModelLoading}
-            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-2 rounded shadow transition"
+            className="bg-flame hover:bg-flame/90 disabled:opacity-50 disabled:cursor-not-allowed text-on-dark text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-flame transition flex items-center gap-1.5"
           >
-            Run Full Frame Extraction
+            <span className="material-symbols-outlined text-[14px]">psychology</span>
+            Run Full Extraction
           </button>
         </div>
       )}

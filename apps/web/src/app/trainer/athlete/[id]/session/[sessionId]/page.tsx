@@ -62,6 +62,7 @@ export default function SessionDetailPage() {
   const [activeReplayId, setActiveReplayId] = useState<string | null>(null);
   const [globalShowAngles, setGlobalShowAngles] = useState(true);
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('3d');
+  const [showPhaseLines, setShowPhaseLines] = useState(false);
 
   const [sessionReplay, setSessionReplay] = useState<{
     isOpen: boolean;
@@ -415,6 +416,21 @@ export default function SessionDetailPage() {
 
       const markersList = markers ? [markers] : [];
 
+      // Extract phase markers for the selected attempt
+      const phaseFrames = frames.filter(f =>
+        (f.rep_id === selectedAttempt.id || (selectedAttempt.repId && f.rep_id === selectedAttempt.repId)) &&
+        f.frame_type && typeof f.frame_type === 'string' && f.frame_type.startsWith('phase_') && f.frame_type.endsWith('_start')
+      );
+      const phaseMarkers = phaseFrames.map(f => {
+        const parts = f.frame_type.split('_');
+        const pNum = parts[1] || '';
+        return {
+          x: f.frame_number,
+          label: `P${pNum}`,
+          phaseName: `Phase ${pNum}`
+        };
+      }).sort((a, b) => a.x - b.x);
+
       const tickMap = new Map<number, string>();
       if (markers) {
         tickMap.set(markers.start, 'START');
@@ -422,12 +438,13 @@ export default function SessionDetailPage() {
         tickMap.set(markers.end, 'END');
       }
 
-      return { data: dataWithTempo, markers: markersList, tickMap };
+      return { data: dataWithTempo, markers: markersList, phaseMarkers, tickMap };
     } else {
       // Re-map frames for "ALL" view to ensure chronological rep sequence
       let globalOffset = 0;
       const allData: any[] = [];
       const markersList: any[] = [];
+      const phaseMarkersList: any[] = [];
       const tickMap = new Map<number, string>();
 
       timeline.forEach((move) => {
@@ -463,6 +480,24 @@ export default function SessionDetailPage() {
           const durationSec = (mappedMoveData.length / 30).toFixed(1);
           markersList.push({ ...markers, durationSec });
 
+          // Phase transition markers for this rep
+          const movePhaseFrames = frames.filter(f =>
+            moveIds.has(String(f.rep_id)) &&
+            f.frame_type && typeof f.frame_type === 'string' && f.frame_type.startsWith('phase_') && f.frame_type.endsWith('_start')
+          );
+          movePhaseFrames.forEach(f => {
+            const match = mappedMoveData.find(d => d._orig === f.frame_number);
+            if (match) {
+              const parts = f.frame_type.split('_');
+              const pNum = parts[1] || '';
+              phaseMarkersList.push({
+                x: match.frame,
+                label: `P${pNum}`,
+                phaseName: `Phase ${pNum}`
+              });
+            }
+          });
+
           // Labels for the X-Axis
           tickMap.set(markers.start, `${markers.start}`);
           tickMap.set(markers.end, `${markers.end}`);
@@ -473,11 +508,11 @@ export default function SessionDetailPage() {
         globalOffset += mappedMoveData.length + 20;
       });
 
-      return { data: allData, markers: markersList, tickMap };
+      return { data: allData, markers: markersList, phaseMarkers: phaseMarkersList, tickMap };
     }
-  }, [analytics, timeline, selectedAttemptIndex, session, jointNames]);
+  }, [analytics, timeline, selectedAttemptIndex, session, jointNames, frames]);
 
-  const { data: kinematicsData, markers: allMarkers, tickMap } = processedKinematics;
+  const { data: kinematicsData, markers: allMarkers, phaseMarkers: allPhaseMarkers, tickMap } = processedKinematics;
   const axisTicks = Array.from(tickMap.keys());
 
   const JOINT_COLORS = ['#003366', '#256b8b', '#00712D', '#D5F0C1', '#FFE31A'];
@@ -821,19 +856,36 @@ export default function SessionDetailPage() {
                                 {isRhythm ? 'Rhythm & Consistency' : (group.isBilateral ? 'Bilateral Comparison' : 'Mechanical Range')}
                               </p>
                             </div>
-                            <div className="flex gap-2">
-                              {!isRhythm && group.joints.map((j, jIdx) => {
-                                const isLeft = j.startsWith('l') || j.startsWith('left');
-                                const isRight = j.startsWith('r') || j.startsWith('right');
-                                const color = group.isBilateral
-                                  ? (isLeft ? SYMMETRY_COLORS.left : (isRight ? SYMMETRY_COLORS.right : JOINT_COLORS[(gIdx + jIdx) % JOINT_COLORS.length]))
-                                  : JOINT_COLORS[(gIdx + jIdx) % JOINT_COLORS.length];
+                            <div className="flex items-center gap-3">
+                              {!isRhythm && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPhaseLines(prev => !prev)}
+                                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all flex items-center gap-1.5 ${
+                                    showPhaseLines
+                                      ? 'bg-flame text-on-dark border-flame shadow-sm'
+                                      : 'bg-surface-elev text-fg-mute border-border hover:text-fg hover:border-flame/40'
+                                  }`}
+                                  title="Toggle phase lines across the rep"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">view_timeline</span>
+                                  {showPhaseLines ? 'Hide Phase Lines' : 'Show Phase Lines'}
+                                </button>
+                              )}
+                              <div className="flex gap-2">
+                                {!isRhythm && group.joints.map((j, jIdx) => {
+                                  const isLeft = j.startsWith('l') || j.startsWith('left');
+                                  const isRight = j.startsWith('r') || j.startsWith('right');
+                                  const color = group.isBilateral
+                                    ? (isLeft ? SYMMETRY_COLORS.left : (isRight ? SYMMETRY_COLORS.right : JOINT_COLORS[(gIdx + jIdx) % JOINT_COLORS.length]))
+                                    : JOINT_COLORS[(gIdx + jIdx) % JOINT_COLORS.length];
 
-                                return (
-                                  <div key={j} className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-                                );
-                              })}
-                              {isRhythm && <div className="h-2 w-2 rounded-full bg-secondary" />}
+                                  return (
+                                    <div key={j} className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                                  );
+                                })}
+                                {isRhythm && <div className="h-2 w-2 rounded-full bg-secondary" />}
+                              </div>
                             </div>
                           </div>
 
@@ -965,6 +1017,24 @@ export default function SessionDetailPage() {
                                           />
                                         )}
                                       </React.Fragment>
+                                    ))}
+
+                                    {/* Phase Transition Lines */}
+                                    {showPhaseLines && allPhaseMarkers && allPhaseMarkers.map((pm, pIdx) => (
+                                      <ReferenceLine
+                                        key={`phase-line-${pIdx}-${pm.x}`}
+                                        x={pm.x}
+                                        stroke="#ff7a00"
+                                        strokeDasharray="3 3"
+                                        strokeWidth={1.5}
+                                        label={{
+                                          value: pm.label,
+                                          position: 'insideTopLeft',
+                                          fill: '#ff7a00',
+                                          fontSize: 9,
+                                          fontWeight: 800
+                                        }}
+                                      />
                                     ))}
                                   </>
                                 )}

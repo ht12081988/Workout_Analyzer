@@ -1,10 +1,16 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { VideoExtractor, TelemetryFrame } from './components/VideoExtractor';
-import { PhaseConfigurator, RuleConfig } from './components/PhaseConfigurator';
-import { DynamicRule } from '@workout/shared';
+import { PhaseConfigurator, RuleConfig, ConfigTab } from './components/PhaseConfigurator';
+import { MetricExtractModal, MetricItem } from './components/MetricExtractModal';
+import { MetricSelectionPanel } from './components/MetricSelectionPanel';
+import {
+  DynamicRule,
+  PoseData,
+  predictMetricOperatorAndBuffer
+} from '@workout/shared';
 import { useRouter } from 'next/navigation';
 
 export default function NoCodeBuilderPage() {
@@ -13,7 +19,7 @@ export default function NoCodeBuilderPage() {
   const [markers, setMarkers] = useState<{id: string, timeMs: number, label: string}[]>([]);
   const [currentTimeMs, setCurrentTimeMs] = useState<number>(0);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
-  const [showVideoAssistant, setShowVideoAssistant] = useState(false);
+  const [showVideoAssistant, setShowVideoAssistant] = useState(true);
 
   // Master Configuration State
   const [exerciseName, setExerciseName] = useState('');
@@ -23,8 +29,74 @@ export default function NoCodeBuilderPage() {
   const [cameraAngle, setCameraAngle] = useState('FRONT');
   const [imagePath, setImagePath] = useState('');
   const [videoPath, setVideoPath] = useState('');
-  const [phasesConfig, setPhasesConfig] = useState<Record<string, { entryConditions: RuleConfig[], formChecks: RuleConfig[], isSetupPhase?: boolean }>>({});
+  const [phasesConfig, setPhasesConfig] = useState<Record<string, { entryConditions: RuleConfig[], formChecks: RuleConfig[], isSetupPhase?: boolean, entryCue?: string, entryCueEnabled?: boolean }>>({});
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Video Assistant Sub-tab & Persistent Selected Metrics
+  const [configTab, setConfigTab] = useState<ConfigTab>('transitions');
+  const [selectedMetricKeys, setSelectedMetricKeys] = useState<string[]>(['KNEE_ANGLE', 'HIP_HINGE_ANGLE']);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('visionfit_builder_selected_metrics');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSelectedMetricKeys(parsed);
+          }
+        }
+      } catch (e) {}
+    }
+  }, []);
+
+  const toggleSelectedMetricKey = (key: string) => {
+    setSelectedMetricKeys(prev => {
+      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('visionfit_builder_selected_metrics', JSON.stringify(next));
+        } catch (e) {}
+      }
+      return next;
+    });
+  };
+
+  const clearSelectedMetricKeys = () => {
+    setSelectedMetricKeys([]);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('visionfit_builder_selected_metrics', JSON.stringify([]));
+      } catch (e) {}
+    }
+  };
+
+  // Metric Extraction Modal State
+  const [availableMetrics, setAvailableMetrics] = useState<MetricItem[]>([]);
+  const [isExtractModalOpen, setIsExtractModalOpen] = useState(false);
+  const [currentExtractPose, setCurrentExtractPose] = useState<PoseData | null>(null);
+  const [previousExtractPose, setPreviousExtractPose] = useState<PoseData | null>(null);
+  const [previousMarkerLabel, setPreviousMarkerLabel] = useState<string>('');
+
+  useEffect(() => {
+    fetch('/api/metrics')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setAvailableMetrics(data.map((m: any) => ({
+            metric_key: m.metric_key,
+            metric_name: m.metric_name || m.name || m.metric_key,
+            name: m.metric_name || m.name || m.metric_key,
+            description: m.description,
+            min_val: m.min_val,
+            max_val: m.max_val,
+            category: m.category,
+            unit: m.unit
+          })));
+        }
+      })
+      .catch(err => console.error("Failed to load metrics library", err));
+  }, []);
 
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -118,84 +190,78 @@ export default function NoCodeBuilderPage() {
     };
     setMarkers([...markers, newMarker]);
     setSelectedMarkerId(newMarker.id);
-    
-    // Initialize config for this phase
-    setPhasesConfig(prev => ({ ...prev, [newMarker.id]: { entryConditions: [], formChecks: [] } }));
-  };
-
-  const handleAddPhaseManually = () => {
-    handleAddMarker(-1);
-  };
-
-  const handleAutoMagicExtract = () => {
-    if (telemetry.length === 0) {
-      showAlert("Please run 'Full Frame Extraction' on the video first so we have the 3D data!", true);
-      return;
-    }
-
-    // 1. Find closest frame
-    let closestFrame = telemetry[0];
-    let minDiff = Infinity;
-    for (const frame of telemetry) {
-      const diff = Math.abs(frame.timeMs - currentTimeMs);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestFrame = frame;
-      }
-    }
-
-    // 2. Add Phase marker
-    const newMarkerId = Date.now().toString();
-    const newMarker = {
-      id: newMarkerId,
-      timeMs: currentTimeMs,
-      label: `Phase ${markers.length + 1}`
-    };
-    setMarkers([...markers, newMarker]);
-    setSelectedMarkerId(newMarker.id);
-
-    // 3. Auto-calculate metrics
-    const pose = closestFrame.pose;
-    const ALL_METRICS = ['KNEE_ANGLE', 'LEFT_KNEE_ANGLE', 'RIGHT_KNEE_ANGLE', 'TORSO_ANGLE_VERT', 'STANCE_WIDTH_RATIO', 'KNEE_VALGUS_RATIO', 'FOOT_TURNOUT_ANGLE', 'BODY_ORIENTATION_ANGLE', 'HIP_HINGE_ANGLE', 'ELBOW_ANGLE', 'LEFT_ELBOW_ANGLE', 'RIGHT_ELBOW_ANGLE', 'SHOULDER_FLEXION', 'LEFT_SHOULDER_FLEXION', 'RIGHT_SHOULDER_FLEXION', 'WRIST_ALIGNMENT', 'LEFT_WRIST_ALIGNMENT', 'RIGHT_WRIST_ALIGNMENT', 'GAZE_ALIGNMENT', 'GRIP_WIDTH_RATIO', 'BILATERAL_SYMMETRY', 'KNEE_OVER_TOE', 'HEAD_FORWARD_LEAN', 'VERTICAL_BAR_PATH', 'HEEL_RAISE_TILT', 'LEFT_HEEL_RAISE_TILT', 'RIGHT_HEEL_RAISE_TILT', 'DYN_TORSO_COMPRESSION', 'BODY_SWAY', 'SHOULDER_ROTATION', 'STILLNESS_JITTER', 'CONCENTRIC_VELOCITY', 'ECCENTRIC_VELOCITY'];
-
-    const newRules: RuleConfig[] = [];
-    ALL_METRICS.forEach((metricId, index) => {
-       // Mock state to stabilize ratio calculations
-       const mockState = { timeMs: currentTimeMs, baseTorsoHeight: 0.5 }; 
-       const val = DynamicRule.calculateMetric(metricId, pose, mockState);
-       
-       // Only populate if it actually yielded a valid value
-       if (val !== 0 && !isNaN(val)) {
-         newRules.push({
-           id: Date.now().toString() + index,
-           metric: metricId,
-           operator: '>', // Default to > 
-           value: Number(val.toFixed(2)),
-           isBlocking: true
-         });
-       }
-    });
-
     setPhasesConfig(prev => ({
       ...prev,
-      [newMarkerId]: {
-        entryConditions: newRules,
+      [newMarker.id]: {
+        entryConditions: [],
         formChecks: []
       }
     }));
+    setConfigTab('transitions');
   };
 
-  const handleUpdateSelectedPhaseWithTelemetry = () => {
+  const handleAutoMagicExtract = () => {
+    if (!showVideoAssistant) {
+      // MANUAL MODE: Add selected metrics directly into active phase without video
+      if (!selectedMarkerId || !phasesConfig[selectedMarkerId]) {
+        showAlert("Please select a phase from the tabs above before adding metrics.", true);
+        return;
+      }
+
+      if (selectedMetricKeys.length === 0) {
+        setConfigTab('metrics');
+        showAlert("No metrics are selected! Please select at least one metric from the list below.", true);
+        return;
+      }
+
+      const generatedRules: RuleConfig[] = selectedMetricKeys.map(key => {
+        const meta = availableMetrics.find(m => m.metric_key === key);
+        const min = meta?.min_val !== undefined ? Number(meta.min_val) : 0;
+        const max = meta?.max_val !== undefined ? Number(meta.max_val) : 180;
+        const defaultVal = Math.round(((min + max) / 2) * 10) / 10;
+        return {
+          id: `rule_${key}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          metric: key,
+          operator: '<',
+          value: defaultVal,
+          isBlocking: true
+        };
+      });
+
+      setPhasesConfig(prev => {
+        const currentPhase = prev[selectedMarkerId] || { entryConditions: [], formChecks: [] };
+        const existing = (currentPhase.entryConditions || []).filter(e => !selectedMetricKeys.includes(e.metric));
+        return {
+          ...prev,
+          [selectedMarkerId]: {
+            ...currentPhase,
+            entryConditions: [...existing, ...generatedRules]
+          }
+        };
+      });
+
+      const phaseLabel = markers.find(m => m.id === selectedMarkerId)?.label || 'Current Phase';
+      setConfigTab('transitions');
+      showAlert(`Successfully added ${generatedRules.length} metric(s) to ${phaseLabel}! You can now adjust their operators and values below.`, false);
+      return;
+    }
+
     if (telemetry.length === 0) {
       showAlert("Please run 'Full Frame Extraction' on the video first so we have the 3D data!", true);
       return;
     }
+
     if (!selectedMarkerId || !phasesConfig[selectedMarkerId]) {
-      showAlert("Please select a phase from the tabs above first!", true);
+      showAlert("Please select a phase marker first before extracting metrics.", true);
       return;
     }
 
-    // 1. Find closest frame
+    if (selectedMetricKeys.length === 0) {
+      setConfigTab('metrics');
+      showAlert("No metrics are selected! Please select at least one metric from the 'Metric Selection' tab.", true);
+      return;
+    }
+
     let closestFrame = telemetry[0];
     let minDiff = Infinity;
     for (const frame of telemetry) {
@@ -206,37 +272,96 @@ export default function NoCodeBuilderPage() {
       }
     }
 
-    const pose = closestFrame.pose;
-    const mockState = { timeMs: currentTimeMs, baseTorsoHeight: 0.5 }; 
+    // Find previous marker in chronological timeline
+    const sortedMarkers = [...markers].sort((a, b) => a.timeMs - b.timeMs);
+    const currentIdx = sortedMarkers.findIndex(m => m.id === selectedMarkerId);
+    let prevPose: PoseData | null = null;
+    let prevLabel = '';
 
-    // Update entry conditions
-    const updatedEntryConditions = phasesConfig[selectedMarkerId].entryConditions.map(rule => {
-      const val = DynamicRule.calculateMetric(rule.metric, pose, mockState);
-      if (val !== 0 && !isNaN(val)) {
-        return { ...rule, value: Number(val.toFixed(2)) };
+    if (currentIdx > 0) {
+      const prevMarker = sortedMarkers[currentIdx - 1];
+      prevLabel = prevMarker.label;
+      let prevMinDiff = Infinity;
+      for (const f of telemetry) {
+        const diff = Math.abs(f.timeMs - prevMarker.timeMs);
+        if (diff < prevMinDiff) {
+          prevMinDiff = diff;
+          prevPose = f.pose;
+        }
       }
-      return rule;
+    } else if (telemetry.length > 0) {
+      prevPose = telemetry[0].pose;
+      prevLabel = 'Start of Video';
+    }
+
+    const mockState = { timeMs: currentTimeMs, baseTorsoHeight: 0.5 };
+    const generatedRules: RuleConfig[] = [];
+    const summaryLines: string[] = [];
+
+    for (const key of selectedMetricKeys) {
+      const currVal = DynamicRule.calculateMetric(key, closestFrame.pose, mockState);
+      const prevVal = prevPose ? DynamicRule.calculateMetric(key, prevPose, mockState) : currVal;
+      const pred = predictMetricOperatorAndBuffer(key, prevVal, currVal);
+
+      generatedRules.push({
+        id: `rule_${key}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        metric: key,
+        operator: pred.operator,
+        value: pred.targetValue,
+        isBlocking: true
+      });
+
+      const mMeta = availableMetrics.find(m => m.metric_key === key);
+      const name = mMeta?.metric_name || mMeta?.name || key;
+      const unit = key.includes('RATIO') ? '' : '°';
+      summaryLines.push(`• ${name}: ${pred.operator} ${pred.targetValue}${unit} (${pred.movementType})`);
+    }
+
+    // Update phase configuration persistently
+    setPhasesConfig(prev => {
+      const currentPhase = prev[selectedMarkerId] || { entryConditions: [], formChecks: [] };
+      const existing = (currentPhase.entryConditions || []).filter(e => !selectedMetricKeys.includes(e.metric));
+      return {
+        ...prev,
+        [selectedMarkerId]: {
+          ...currentPhase,
+          entryConditions: [...existing, ...generatedRules]
+        }
+      };
     });
 
-    // Update form checks
-    const updatedFormChecks = phasesConfig[selectedMarkerId].formChecks.map(rule => {
-      const val = DynamicRule.calculateMetric(rule.metric, pose, mockState);
-      if (val !== 0 && !isNaN(val)) {
-        return { ...rule, value: Number(val.toFixed(2)) };
+    const phaseLabel = markers.find(m => m.id === selectedMarkerId)?.label || 'Current Phase';
+    setConfigTab('transitions');
+    showAlert(`Extracted to ${phaseLabel} (compared to ${prevLabel || 'Start'}):\n\n${summaryLines.join('\n')}`, false);
+  };
+
+  const handleApplyExtractedMetrics = (rules: RuleConfig[], targetType: 'entry' | 'formCheck') => {
+    if (!selectedMarkerId) return;
+
+    setPhasesConfig(prev => {
+      const currentPhase = prev[selectedMarkerId] || { entryConditions: [], formChecks: [] };
+      if (targetType === 'entry') {
+        const existing = (currentPhase.entryConditions || []).filter(e => !rules.some(r => r.metric === e.metric));
+        return {
+          ...prev,
+          [selectedMarkerId]: {
+            ...currentPhase,
+            entryConditions: [...existing, ...rules]
+          }
+        };
+      } else {
+        const existing = (currentPhase.formChecks || []).filter(e => !rules.some(r => r.metric === e.metric));
+        return {
+          ...prev,
+          [selectedMarkerId]: {
+            ...currentPhase,
+            formChecks: [...existing, ...rules]
+          }
+        };
       }
-      return rule;
     });
 
-    setPhasesConfig(prev => ({
-      ...prev,
-      [selectedMarkerId]: {
-        ...prev[selectedMarkerId],
-        entryConditions: updatedEntryConditions,
-        formChecks: updatedFormChecks
-      }
-    }));
-    
-    showAlert("Metrics updated successfully for this phase!", false);
+    showAlert(`Successfully added ${rules.length} metric(s) with auto-operators to ${markers.find(m => m.id === selectedMarkerId)?.label || 'phase'}!`, false);
   };
 
   const handleRemoveMarker = (id: string) => {
@@ -246,43 +371,49 @@ export default function NoCodeBuilderPage() {
 
   const handleSave = async () => {
     if (!exerciseName) return showAlert("Please enter an exercise name", true);
-    if (markers.length === 0) return showAlert("Please create at least one phase", true);
-
-    const sortedMarkers = [...markers].sort((a,b) => a.timeMs - b.timeMs);
-    const phases = sortedMarkers.map(m => ({
-      name: m.label,
-      isSetupPhase: phasesConfig[m.id]?.isSetupPhase || false,
-      entryConditions: phasesConfig[m.id]?.entryConditions || [],
-      formChecks: phasesConfig[m.id]?.formChecks || []
-    }));
-
-    const dynamicProfile = { phases };
 
     try {
+      const bodyPayload: any = {
+        name: exerciseName,
+        description: exerciseDescription,
+        category,
+        subcategory,
+        camera_angle: cameraAngle,
+        image_path: imagePath,
+        video_path: videoPath,
+        trackingMode: 'phases'
+      };
+
+      if (markers.length === 0) return showAlert("Please create at least one phase", true);
+
+      const sortedMarkers = [...markers].sort((a,b) => a.timeMs - b.timeMs);
+      const phases = sortedMarkers.map((m, idx) => ({
+        name: m.label.startsWith(`Phase ${idx + 1}`) ? m.label : `Phase ${idx + 1}: ${m.label}`,
+        isSetupPhase: phasesConfig[m.id]?.isSetupPhase || false,
+        entryConditions: phasesConfig[m.id]?.entryConditions || [],
+        formChecks: phasesConfig[m.id]?.formChecks || [],
+        entryCue: phasesConfig[m.id]?.entryCue || '',
+        entryCueEnabled: phasesConfig[m.id]?.entryCueEnabled || false,
+      }));
+      bodyPayload.dynamicProfile = { phases };
+
       const res = await fetch('/api/admin/exercises', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: exerciseName,
-          description: exerciseDescription,
-          category,
-          subcategory,
-          camera_angle: cameraAngle,
-          image_path: imagePath,
-          video_path: videoPath,
-          dynamicProfile
-        })
+        body: JSON.stringify(bodyPayload)
       });
 
       if (!res.ok) {
-        if (res.status === 500) {
-           throw new Error(`Failed to save. An exercise named "${exerciseName}" might already exist.`);
-        }
-        throw new Error("Failed to save");
+        let msg = "Failed to save";
+        try {
+          const errData = await res.json();
+          if (errData.message) msg = errData.message;
+        } catch (e) {}
+        throw new Error(msg);
       }
       
       const data = await res.json();
-      await showAlert("Exercise saved successfully!", false);
+      await showAlert("Exercise created successfully!", false);
       router.push(`/admin/exercises/${data.exercise_id}`);
     } catch (err: any) {
       console.error(err);
@@ -297,23 +428,24 @@ export default function NoCodeBuilderPage() {
     const newId = `marker-${Date.now()}`;
     const newLabel = `${originalMarker.label} (Copy)`;
     
-    setMarkers([...markers, { id: newId, timeMs: originalMarker.timeMs, label: newLabel }]);
+    setMarkers(prev => [...prev, {
+      id: newId,
+      timeMs: originalMarker.timeMs,
+      label: newLabel
+    }]);
     
-    if (phasesConfig[markerId]) {
-      setPhasesConfig(prev => ({
-        ...prev,
-        [newId]: JSON.parse(JSON.stringify(prev[markerId]))
-      }));
-    }
+    setPhasesConfig(prev => ({
+      ...prev,
+      [newId]: JSON.parse(JSON.stringify(prev[markerId]))
+    }));
     
     setSelectedMarkerId(newId);
   };
 
-  const activePhaseLabel = markers.find(m => m.id === selectedMarkerId)?.label || '';
-
   return (
     <div className="px-10 py-10 w-full space-y-6 pb-32">
-      <div className="flex flex-col gap-6">
+      {/* Exercise Details Card */}
+      <div className="flex flex-col gap-6 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 bg-surface-card p-8 rounded-xl border border-border shadow-card">
           <div className="flex flex-col gap-1.5">
             <label className="kicker text-fg-mute">Exercise Name <span className="text-err">*</span></label>
@@ -389,7 +521,7 @@ export default function NoCodeBuilderPage() {
           </div>
 
           <div className="flex flex-col gap-1.5 lg:col-span-2">
-            <label className="kicker text-fg-mute">Golden Rep Video URL</label>
+            <label className="kicker text-fg-mute">Reference Video URL</label>
             <input 
               type="text" 
               placeholder="https://.../video.mp4"
@@ -401,6 +533,7 @@ export default function NoCodeBuilderPage() {
         </div>
       </div>
 
+      {/* Movement Phases */}
       <div className="flex flex-col gap-4 mt-6">
         <div className="flex justify-between items-center">
           <h3 className="kicker">Movement Phases</h3>
@@ -443,167 +576,156 @@ export default function NoCodeBuilderPage() {
 
           {/* Horizontal Tabs Container */}
           <div className="flex items-center bg-surface-elev border border-border p-1.5 rounded-2xl flex-1 min-w-0">
-            {/* Scrollable Tabs */}
             <div className="flex items-center overflow-x-auto flex-nowrap whitespace-nowrap min-w-0 flex-1 thin-scrollbar">
-              {markers.map(m => (
-                <div key={m.id} className="relative group flex shrink-0">
+              {markers.map((marker, idx) => (
+                <div key={marker.id} className="relative group flex shrink-0">
                   <button
-                    onClick={() => setSelectedMarkerId(m.id)}
+                    onClick={() => setSelectedMarkerId(marker.id)}
                     className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all pr-[72px] flex items-center ${
-                      selectedMarkerId === m.id 
+                      selectedMarkerId === marker.id 
                         ? 'bg-flame text-on-dark shadow-flame' 
                         : 'text-fg-mute hover:text-fg hover:bg-surface-raised'
                     }`}
                   >
-                    {m.label}
+                    <span>{marker.label}</span>
                   </button>
-                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+
+                  {/* Actions Container */}
+                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDuplicatePhase(m.id);
+                        handleDuplicatePhase(marker.id);
                       }}
                       className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
-                        selectedMarkerId === m.id
-                          ? 'text-on-dark/70 hover:text-white hover:bg-black/20'
-                          : 'text-fg-mute/70 hover:text-flame hover:bg-flame/10'
+                        selectedMarkerId === marker.id
+                          ? 'hover:bg-white/20 text-on-dark'
+                          : 'hover:bg-surface-elev text-fg-mute hover:text-flame'
                       }`}
                       title="Duplicate Phase"
                     >
                       <span className="material-symbols-outlined text-[16px]">content_copy</span>
                     </button>
+
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setConfirmModal({
-                          isOpen: true,
-                          title: 'Delete Phase',
-                          message: `Are you sure you want to delete ${m.label}?`,
-                          confirmText: 'Yes, Delete',
-                          confirmStyle: 'err',
-                          onConfirm: () => {
-                            setConfirmModal(null);
-                            handleRemoveMarker(m.id);
-                          }
-                        });
+                        handleRemoveMarker(marker.id);
                       }}
                       className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
-                        selectedMarkerId === m.id
-                          ? 'text-on-dark/70 hover:text-white hover:bg-black/20'
-                          : 'text-fg-mute/70 hover:text-err hover:bg-err/10'
+                        selectedMarkerId === marker.id
+                          ? 'hover:bg-white/20 text-on-dark'
+                          : 'hover:bg-surface-elev text-fg-mute hover:text-err'
                       }`}
                       title="Delete Phase"
                     >
-                      <span className="material-symbols-outlined text-[16px]">delete</span>
+                      <span className="material-symbols-outlined text-[16px]">close</span>
                     </button>
                   </div>
                 </div>
               ))}
             </div>
-            
-            {/* Pinned Add Button */}
-            {markers.length > 0 && <div className="w-px h-6 bg-border mx-2 shrink-0" />}
-            
-            <button 
-              onClick={handleAddPhaseManually}
-              className="flex items-center justify-center w-10 h-10 rounded-xl text-fg-mute hover:text-flame hover:bg-flame/5 transition-all shrink-0"
-              title="Add Phase"
+
+            <button
+              onClick={() => handleAddMarker(currentTimeMs)}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-surface-raised hover:bg-surface-card text-fg border border-border/80 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 ml-2"
             >
-              <span className="material-symbols-outlined text-[20px]">add</span>
+              <span className="material-symbols-outlined text-[16px]">add</span>
+              Add Phase
             </button>
           </div>
         </div>
 
-        {/* 2-Column or 1-Column Layout */}
-        <div className={`grid gap-6 ${showVideoAssistant ? 'grid-cols-2' : 'grid-cols-1'}`}>
-          {/* Left Column (Video) */}
+        {/* Main Workspace: 2-Column Side-by-Side (Video Indicator on Left, Phase Rules on Right) */}
+        <div className={`grid grid-cols-1 ${showVideoAssistant ? 'lg:grid-cols-12' : ''} gap-6 items-start`}>
+          {/* Left Column: Video Assistant */}
           {showVideoAssistant && (
-            <div className="flex flex-col gap-4">
-              <VideoExtractor 
+            <div className="lg:col-span-5 flex flex-col gap-4">
+              <VideoExtractor
+                initialVideoUrl={videoPath}
+                onVideoChange={(url) => setVideoPath(url)}
                 onExtractionComplete={handleExtractionComplete}
-                onTimeUpdate={setCurrentTimeMs}
-                scrubTimeMs={currentTimeMs}
+                onTimeUpdate={(t) => setCurrentTimeMs(t)}
               />
-              
-              <div className="bg-surface-elev border border-border p-5 rounded-xl shadow-sm">
-                <h4 className="text-fg font-bold text-sm mb-2 flex items-center gap-2">
-                  <span className="text-xl">🪄</span> Auto-Magic Phase Population
-                </h4>
-                <p className="text-fg-mute text-xs mb-4">
-                  Pause the video where you want to create a new phase. Click the button below to extract the 3D telemetry and auto-populate all entry conditions based on the athlete's exact angles at this frame.
-                </p>
-                <button 
-                  onClick={handleAutoMagicExtract}
-                  className="w-full bg-flame hover:bg-flame/90 text-on-dark font-bold text-sm py-3 px-4 rounded-lg transition shadow-flame flex items-center justify-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  Extract Rules & Add New Phase Here
-                </button>
-                {selectedMarkerId && (
-                  <button 
-                    onClick={handleUpdateSelectedPhaseWithTelemetry}
-                    className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm py-3 px-4 rounded-lg transition shadow-md flex items-center justify-center gap-2"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">sync</span>
-                    Update metrics to the phase
-                  </button>
-                )}
-              </div>
             </div>
           )}
 
-          {/* Right Column (Phase Configurator) */}
-          <div className="flex flex-col min-w-0 h-full">
-            {selectedMarkerId ? (
-              <>
-                <PhaseConfigurator 
-                  phaseName={activePhaseLabel}
-                  entryConditions={phasesConfig[selectedMarkerId] ? phasesConfig[selectedMarkerId].entryConditions : []}
-                  formChecks={phasesConfig[selectedMarkerId] ? phasesConfig[selectedMarkerId].formChecks : []}
-                  isSetupPhase={phasesConfig[selectedMarkerId] ? phasesConfig[selectedMarkerId].isSetupPhase : false}
-                  onUpdateSetupPhase={(val) => {
-                    setPhasesConfig(prev => ({
-                      ...prev,
-                      [selectedMarkerId]: { ...prev[selectedMarkerId], isSetupPhase: val }
-                    }));
-                  }}
-                  onUpdateEntryConditions={(rules) => {
-                    setPhasesConfig(prev => ({
-                      ...prev,
-                      [selectedMarkerId]: { ...prev[selectedMarkerId], entryConditions: rules }
-                    }));
-                  }}
-                  onUpdateFormChecks={(rules) => {
-                    setPhasesConfig(prev => ({
-                      ...prev,
-                      [selectedMarkerId]: { ...prev[selectedMarkerId], formChecks: rules }
-                    }));
-                  }}
-                  onUpdatePhaseName={(newName) => {
-                    setMarkers(markers.map(m => m.id === selectedMarkerId ? { ...m, label: newName } : m));
-                  }}
-                />
-                
-                <div className="bg-surface-card border border-flame/30 rounded-xl p-5 flex justify-between items-center mt-6 shadow-sm">
-                  <p className="text-sm text-fg-mute font-medium">Ready to deploy this exercise?</p>
-                  <button 
-                    onClick={handleSave}
-                    className="bg-flame text-on-dark font-bold px-6 py-2 rounded-full shadow-flame hover:scale-[1.03] transition-all"
-                  >
-                    Save
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="bg-surface-card border border-border p-12 text-center rounded-xl text-fg-mute flex flex-col items-center justify-center">
-                <span className="material-symbols-outlined text-4xl mb-4 opacity-50">build</span>
-                <p>Select a phase from the tabs above or click "Add Phase" to begin building.</p>
+          {/* Right Column: Phase Transitions & Live Form Checks */}
+          <div className={`${showVideoAssistant ? 'lg:col-span-7' : 'w-full'} flex flex-col gap-6`}>
+            <PhaseConfigurator
+              key={selectedMarkerId || 'none'}
+              phaseName={selectedMarkerId ? (markers.find(m => m.id === selectedMarkerId)?.label || '') : ''}
+              isSetupPhase={selectedMarkerId && phasesConfig[selectedMarkerId] ? phasesConfig[selectedMarkerId].isSetupPhase : false}
+              entryConditions={selectedMarkerId && phasesConfig[selectedMarkerId] ? phasesConfig[selectedMarkerId].entryConditions : []}
+              formChecks={selectedMarkerId && phasesConfig[selectedMarkerId] ? phasesConfig[selectedMarkerId].formChecks : []}
+              entryCue={selectedMarkerId && phasesConfig[selectedMarkerId] ? (phasesConfig[selectedMarkerId].entryCue || '') : ''}
+              entryCueEnabled={selectedMarkerId && phasesConfig[selectedMarkerId] ? (phasesConfig[selectedMarkerId].entryCueEnabled || false) : false}
+              onUpdateSetupPhase={(isSetup) => {
+                if (!selectedMarkerId) return;
+                setPhasesConfig(prev => ({
+                  ...prev,
+                  [selectedMarkerId]: { ...prev[selectedMarkerId], isSetupPhase: isSetup }
+                }));
+              }}
+              onUpdateEntryConditions={(rules) => {
+                if (!selectedMarkerId) return;
+                setPhasesConfig(prev => ({
+                  ...prev,
+                  [selectedMarkerId]: { ...prev[selectedMarkerId], entryConditions: rules }
+                }));
+              }}
+              onUpdateFormChecks={(rules) => {
+                if (!selectedMarkerId) return;
+                setPhasesConfig(prev => ({
+                  ...prev,
+                  [selectedMarkerId]: { ...prev[selectedMarkerId], formChecks: rules }
+                }));
+              }}
+              onUpdateEntryCue={(cue) => {
+                if (!selectedMarkerId) return;
+                setPhasesConfig(prev => ({
+                  ...prev,
+                  [selectedMarkerId]: { ...prev[selectedMarkerId], entryCue: cue }
+                }));
+              }}
+              onUpdateEntryCueEnabled={(enabled) => {
+                if (!selectedMarkerId) return;
+                setPhasesConfig(prev => ({
+                  ...prev,
+                  [selectedMarkerId]: { ...prev[selectedMarkerId], entryCueEnabled: enabled }
+                }));
+              }}
+              onUpdatePhaseName={(newName) => {
+                if (!selectedMarkerId) return;
+                setMarkers(prev => prev.map(m => m.id === selectedMarkerId ? { ...m, label: newName } : m));
+              }}
+              availableMetrics={availableMetrics}
+              selectedMetricKeys={selectedMetricKeys}
+              onToggleMetric={toggleSelectedMetricKey}
+              onClearAllMetrics={clearSelectedMetricKeys}
+              activeTab={configTab}
+              onTabChange={setConfigTab}
+              onExtractMetrics={handleAutoMagicExtract}
+              isManualMode={!showVideoAssistant}
+            />
+            {selectedMarkerId && (
+              <div className="bg-surface-card border border-flame/30 rounded-xl p-5 flex justify-between items-center shadow-sm">
+                <p className="text-sm text-fg-mute font-medium">Ready to create this exercise?</p>
+                <button 
+                  onClick={handleSave}
+                  className="bg-flame text-on-dark font-bold px-6 py-2 rounded-full shadow-flame hover:scale-[1.03] transition-all"
+                >
+                  Save Exercise
+                </button>
               </div>
             )}
           </div>
         </div>
       </div>
 
+      {/* Confirmation Modal */}
       {confirmModal?.isOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-surface-card p-6 sm:p-8 rounded-[2rem] max-w-sm w-full shadow-2xl border border-border relative">
@@ -640,6 +762,21 @@ export default function NoCodeBuilderPage() {
           </div>
         </div>
       , document.body)}
+
+      {/* Metric Extraction Modal with Auto-Operator Prediction */}
+      {isExtractModalOpen && currentExtractPose && (
+        <MetricExtractModal
+          isOpen={isExtractModalOpen}
+          onClose={() => setIsExtractModalOpen(false)}
+          targetPhaseName={markers.find(m => m.id === selectedMarkerId)?.label || 'Current Phase'}
+          currentTimeMs={currentTimeMs}
+          availableMetrics={availableMetrics}
+          currentPose={currentExtractPose}
+          previousPose={previousExtractPose}
+          previousPhaseName={previousMarkerLabel}
+          onApply={handleApplyExtractedMetrics}
+        />
+      )}
     </div>
   );
 }

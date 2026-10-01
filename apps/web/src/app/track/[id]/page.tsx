@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { WebcamTracker } from '../../../components/exercise/WebcamTracker';
 import { SkeletonOverlay } from '../../../components/exercise/SkeletonOverlay';
 import { MovementEngine, ExerciseState, PoseData, RepStats, SpeechManager } from '@workout/shared';
-import { ChevronLeft, Play, Square, AlertTriangle, Volume2, VolumeX, Maximize, Minimize, Activity } from 'lucide-react';
+import { ChevronLeft, Play, Square, AlertTriangle, Volume2, VolumeX, Maximize, Minimize, Activity, Zap } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useRef, useEffect } from 'react';
 
@@ -268,15 +268,17 @@ export default function TrackPage() {
 
     try {
       // 1. Log key frames (Start, Top, End, plus intermediate phases) against the ATTEMPT ID
-      const keyFrames: any[] = [
-        { type: 'start', landmarks: stats.startFrameLandmarks, angles: stats.startFrameAngles, frameNumber: 1 },
-        ...(stats.descendingFrame1Landmarks ? [{ type: 'desc_1', landmarks: stats.descendingFrame1Landmarks, angles: stats.descendingFrame1Angles, frameNumber: Math.floor(stats.durationSeconds * 15 * 0.33) }] : []),
-        ...(stats.descendingFrame2Landmarks ? [{ type: 'desc_2', landmarks: stats.descendingFrame2Landmarks, angles: stats.descendingFrame2Angles, frameNumber: Math.floor(stats.durationSeconds * 15 * 0.66) }] : []),
-        ...(stats.topFrameLandmarks ? [{ type: 'top', landmarks: stats.topFrameLandmarks, angles: stats.topFrameAngles, frameNumber: Math.floor(stats.durationSeconds * 15) }] : []),
-        ...(stats.ascendingFrame1Landmarks ? [{ type: 'asc_1', landmarks: stats.ascendingFrame1Landmarks, angles: stats.ascendingFrame1Angles, frameNumber: Math.floor(stats.durationSeconds * 15 + (stats.durationSeconds * 15 * 0.33)) }] : []),
-        ...(stats.ascendingFrame2Landmarks ? [{ type: 'asc_2', landmarks: stats.ascendingFrame2Landmarks, angles: stats.ascendingFrame2Angles, frameNumber: Math.floor(stats.durationSeconds * 15 + (stats.durationSeconds * 15 * 0.66)) }] : []),
-        { type: 'end', landmarks: stats.endFrameLandmarks, angles: stats.endFrameAngles, frameNumber: Math.floor(stats.durationSeconds * 30) }
-      ];
+      const keyFrames: any[] = (stats.phaseFrames && stats.phaseFrames.length > 0)
+        ? stats.phaseFrames
+        : [
+            { type: 'start', landmarks: stats.startFrameLandmarks, angles: stats.startFrameAngles, frameNumber: 1 },
+            ...(stats.descendingFrame1Landmarks ? [{ type: 'desc_1', landmarks: stats.descendingFrame1Landmarks, angles: stats.descendingFrame1Angles, frameNumber: Math.floor(stats.durationSeconds * 15 * 0.33) }] : []),
+            ...(stats.descendingFrame2Landmarks ? [{ type: 'desc_2', landmarks: stats.descendingFrame2Landmarks, angles: stats.descendingFrame2Angles, frameNumber: Math.floor(stats.durationSeconds * 15 * 0.66) }] : []),
+            ...(stats.topFrameLandmarks ? [{ type: 'top', landmarks: stats.topFrameLandmarks, angles: stats.topFrameAngles, frameNumber: Math.floor(stats.durationSeconds * 15) }] : []),
+            ...(stats.ascendingFrame1Landmarks ? [{ type: 'asc_1', landmarks: stats.ascendingFrame1Landmarks, angles: stats.ascendingFrame1Angles, frameNumber: Math.floor(stats.durationSeconds * 15 + (stats.durationSeconds * 15 * 0.33)) }] : []),
+            ...(stats.ascendingFrame2Landmarks ? [{ type: 'asc_2', landmarks: stats.ascendingFrame2Landmarks, angles: stats.ascendingFrame2Angles, frameNumber: Math.floor(stats.durationSeconds * 15 + (stats.durationSeconds * 15 * 0.66)) }] : []),
+            { type: 'end', landmarks: stats.endFrameLandmarks, angles: stats.endFrameAngles, frameNumber: Math.floor(stats.durationSeconds * 30) }
+          ];
 
       for (const frame of keyFrames) {
         await fetch(`${API_BASE_URL}/sessions/${sid}/frames`, {
@@ -419,6 +421,11 @@ export default function TrackPage() {
       if (activeCue !== 'Searching for body...' || newState.currentPhase === 'INITIALIZING') {
         speech.speak(activeCue, false, newState.repCount);
       }
+    }
+
+    // Phase entry cue: fires once when transitioning into a new phase (force=true, no cooldown)
+    if (newState.isStarted && newState.pendingEntryCue) {
+      speech.speak(newState.pendingEntryCue, true);
     }
 
     setState(newState);
@@ -635,7 +642,7 @@ export default function TrackPage() {
                 />
 
                 {/* Overlay Indicators */}
-                <div className="absolute top-4 lg:top-6 left-4 lg:left-6 flex gap-3">
+                <div className="absolute top-4 lg:top-6 left-4 lg:left-6 flex items-center gap-2 z-30">
                   <div className={`px-3 lg:px-4 py-1 lg:py-1.5 rounded-full backdrop-blur-xl border border-white/10 flex items-center gap-2 transition-all duration-300 ${state.isStarted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white/60'
                     }`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${state.isStarted ? 'bg-red-500 animate-pulse' : 'bg-white/40'}`} />
@@ -672,6 +679,88 @@ export default function TrackPage() {
                     )})}
                   </div>
                 )}
+
+                {/* Vertical Stage & Completion HUD - Right Edge */}
+                {(() => {
+                  const currentIdx = state.currentPhaseIndex ?? 0;
+                  const total = state.totalPhases ?? 0;
+                  const stageLabel = total > 0 ? `PHASE ${currentIdx + 1}/${total}` : 'STAGE';
+
+                  let actionTitle = 'SETUP';
+                  if (state.isStarted) {
+                    const rawName = state.phaseName || state.currentPhase.replace(/_/g, ' ');
+                    const parenMatch = rawName.match(/\(([^)]+)\)/);
+                    if (parenMatch && parenMatch[1]) {
+                      actionTitle = parenMatch[1].replace(/Lift|Stance|Position/gi, '').trim();
+                    } else {
+                      actionTitle = rawName.replace(/^Phase\s*\d+\s*[:\-]\s*/i, '').trim();
+                    }
+                    if (!actionTitle) actionTitle = rawName;
+                  }
+
+                  return (
+                    <div className="absolute right-3 lg:right-5 top-1/2 -translate-y-1/2 z-30 pointer-events-none animate-in fade-in slide-in-from-right-3 duration-300">
+                      <div className="bg-black/85 backdrop-blur-2xl border border-white/15 rounded-2xl p-2.5 lg:p-3 shadow-2xl flex flex-col items-center gap-2.5 w-[84px] sm:w-[92px]">
+                        {/* Stage Header / Icon & Title */}
+                        <div className="flex flex-col items-center text-center gap-1 w-full">
+                          <div className={`flex items-center justify-center w-7 h-7 rounded-xl transition-all shadow-sm ${
+                            state.currentPhase === 'REP_COMPLETED'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_rgba(52,211,153,0.3)]'
+                              : state.currentPhase === 'BOTTOM_POSITION' || state.currentPhase === 'TOP_POSITION'
+                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-[0_0_10px_rgba(251,191,36,0.3)]'
+                              : 'bg-cyan-950/70 text-cyan-400 border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
+                          }`}>
+                            <Zap className="w-3.5 h-3.5 fill-current" />
+                          </div>
+                          <span className="text-[8px] font-black text-cyan-400/80 uppercase tracking-widest leading-none">
+                            {stageLabel}
+                          </span>
+                          <span className="text-[9.5px] font-extrabold text-white leading-tight line-clamp-2 px-0.5 break-words uppercase">
+                            {actionTitle}
+                          </span>
+                        </div>
+
+                        {/* Percentage Pill */}
+                        <div className="flex items-baseline justify-center gap-0.5 bg-white/5 px-2 py-0.5 rounded-lg border border-white/10 w-full">
+                          <span className={`text-xs font-black tabular-nums ${
+                            (state.progressPct ?? 0) >= 90 ? 'text-emerald-400' :
+                            (state.progressPct ?? 0) >= 40 ? 'text-cyan-400' :
+                            'text-white'
+                          }`}>
+                            {Math.round(state.progressPct ?? 0)}
+                          </span>
+                          <span className="text-[8px] font-bold text-white/40">%</span>
+                        </div>
+
+                        {/* Vertical Progress Bar with Milestone Ticks */}
+                        <div className="flex items-center justify-center gap-1.5 py-1 w-full">
+                          {/* Milestone Labels on Left */}
+                          <div className="flex flex-col justify-between h-28 lg:h-36 text-[7px] font-black text-white/30 uppercase text-right leading-none select-none">
+                            <span>100%</span>
+                            <span>50%</span>
+                            <span>0%</span>
+                          </div>
+
+                          {/* Track & Filled Bar */}
+                          <div className="relative w-2.5 h-28 lg:h-36 rounded-full bg-white/10 overflow-hidden flex flex-col justify-end p-0.5">
+                            {/* 50% Milestone Marker Line */}
+                            <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-white/20 z-10" />
+
+                            {/* Dynamic Neon Fill rising upwards */}
+                            <div
+                              className={`w-full rounded-full transition-all duration-150 ease-out ${
+                                (state.progressPct ?? 0) >= 95 
+                                  ? 'bg-gradient-to-t from-cyan-400 to-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]'
+                                  : 'bg-gradient-to-t from-cyan-500 via-blue-500 to-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.6)]'
+                              }`}
+                              style={{ height: `${Math.min(100, Math.max(4, state.progressPct ?? 0))}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Fullscreen Button */}
                 <button

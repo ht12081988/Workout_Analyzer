@@ -30,6 +30,15 @@ export interface ExerciseRule {
   severity: 'warning' | 'error' | 'info';
 }
 
+export interface PhaseFrameSample {
+  type: string;
+  landmarks: PoseData;
+  angles: Record<string, number>;
+  frameNumber: number;
+  phaseIndex?: number;
+  phaseName?: string;
+}
+
 export interface RepStats {
   repNumber: number;
   startTime: string; // ISO string
@@ -60,8 +69,11 @@ export interface RepStats {
   ascendingFrame2Angles?: Record<string, number>;
   endFrameAngles: Record<string, number>;
 
+  phaseFrames?: PhaseFrameSample[];
+
   _descendingFramesBuffer?: Array<{pose: PoseData, angles: Record<string, number>}>;
   _ascendingFramesBuffer?: Array<{pose: PoseData, angles: Record<string, number>}>;
+  _perPhaseFrameBuffers?: Record<number, Array<{pose: PoseData, angles: Record<string, number>}>>;
 }
 
 export interface AttemptLogEntry {
@@ -82,6 +94,15 @@ export interface ExerciseState {
   isStarted: boolean;
   startTime?: number;
   attemptLog: AttemptLogEntry[];
+  progressPct?: number;
+  phaseName?: string;
+  currentPhaseIndex?: number;
+  totalPhases?: number;
+  strictness?: 'relaxed' | 'normal' | 'strict';
+  /** One-shot entry cue text to be spoken when transitioning into a new phase. Cleared after speaking. */
+  pendingEntryCue?: string;
+  /** Emitted once when an intermediate phase's exit conditions are met. Cleared after logging. */
+  pendingPhaseCompletion?: { phaseIndex: number; phaseName: string };
 }
 
 export const POSE_LANDMARKS = {
@@ -100,5 +121,9 @@ export const POSE_LANDMARKS = {
   LEFT_EYE: 'LEFT_EYE',
   RIGHT_EYE: 'RIGHT_EYE',
   LEFT_EAR: 'LEFT_EAR',
-  RIGHT_EAR: 'RIGHT_EAR'
+  RIGHT_EAR: 'RIGHT_EAR',
+  LEFT_ELBOW: 'LEFT_ELBOW',
+  RIGHT_ELBOW: 'RIGHT_ELBOW',
+  LEFT_WRIST: 'LEFT_WRIST',
+  RIGHT_WRIST: 'RIGHT_WRIST'
 };

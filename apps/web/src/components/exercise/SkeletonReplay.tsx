@@ -375,7 +375,9 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
         'valgusratio': ['LEFT_ANKLE', 'RIGHT_ANKLE'],
         'stanceratio': ['LEFT_HEEL', 'RIGHT_HEEL'],
         'lfootangle': ['LEFT_ANKLE', 'LEFT_FOOT_INDEX'],
-        'rfootangle': ['RIGHT_ANKLE', 'RIGHT_FOOT_INDEX']
+        'rfootangle': ['RIGHT_ANKLE', 'RIGHT_FOOT_INDEX'],
+        'lefthipabduction': ['LEFT_HIP', 'LEFT_KNEE'],
+        'hipabductionangle': ['LEFT_HIP', 'LEFT_KNEE']
       };
 
       // Define some vertical offsets so they don't overlap if they share the same anchor
@@ -387,7 +389,9 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
         'valgusratio': -20,
         'stanceratio': 20,
         'lfootangle': 10,
-        'rfootangle': 10
+        'rfootangle': 10,
+        'lefthipabduction': 15,
+        'hipabductionangle': 15
       };
 
       for (const [name, val] of Object.entries(angles)) {
@@ -406,12 +410,14 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
             if (['lkneeangle', 'rkneeangle', 'torsoangle'].includes(lowerName)) shouldShow = true;
           } else if (ex.includes('calf')) {
             if (['torsoangle', 'foottilt', 'tilt'].includes(lowerName)) shouldShow = true;
+          } else if (ex.includes('car') || ex.includes('hip')) {
+            if (['lkneeangle', 'rkneeangle', 'torsoangle', 'kneeangle', 'lefthipabduction', 'hipabductionangle'].includes(lowerName)) shouldShow = true;
           } else {
-            if (['lkneeangle', 'rkneeangle', 'torsoangle', 'kneeangle'].includes(lowerName)) shouldShow = true;
+            if (['lkneeangle', 'rkneeangle', 'torsoangle', 'kneeangle', 'lefthipabduction', 'hipabductionangle'].includes(lowerName)) shouldShow = true;
           }
         } else {
           // Fallback
-          if (!['lkneeangle', 'rkneeangle', 'torsoangle', 'kneeangle'].includes(lowerName)) shouldShow = false;
+          if (!['lkneeangle', 'rkneeangle', 'torsoangle', 'kneeangle', 'lefthipabduction', 'hipabductionangle'].includes(lowerName)) shouldShow = false;
         }
 
         if (!shouldShow) continue;
