@@ -743,7 +743,7 @@ export class DynamicRule implements IExerciseRule {
           const isRotatingLeft = zDiff > 0.015;
           const isRotatingRight = zDiff < -0.015;
 
-          if (metricName === 'SHOULDER_ROTATION_LEFT') {
+          if (metricId === 'SHOULDER_ROTATION_LEFT') {
             return isRotatingLeft ? angleDeg : 0;
           } else {
             return isRotatingRight ? angleDeg : 0;
