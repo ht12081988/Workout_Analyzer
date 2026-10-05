@@ -264,6 +264,27 @@ app.patch('/sessions/:id', async (req, res) => {
   }
 });
 
+app.delete('/sessions/:id', async (req, res) => {
+  const sessionId = req.params.id;
+  try {
+    await query('DELETE FROM workout_joint_angles WHERE session_id = $1', [sessionId]);
+    await query('DELETE FROM workout_landmark_frames WHERE session_id = $1', [sessionId]);
+    await query('DELETE FROM workout_deviation_logs WHERE session_id = $1', [sessionId]);
+    await query('DELETE FROM workout_rep_logs WHERE session_id = $1', [sessionId]);
+    await query('DELETE FROM workout_attempts WHERE session_id = $1', [sessionId]);
+    const result = await query('DELETE FROM workout_sessions WHERE id = $1', [sessionId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ status: 'error', message: 'Session not found' });
+    }
+
+    res.json({ status: 'success', message: 'Session deleted successfully' });
+  } catch (error) {
+    console.error('Failed to delete session:', error);
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
 app.get('/sessions', async (req, res) => {
   const { customer_id } = req.query;
   if (!customer_id) {

@@ -7,7 +7,7 @@ import { DynamicRule } from './DynamicRule';
 import { TrajectoryRule } from './TrajectoryRule';
 
 export interface IExerciseRule {
-  validate(pose: PoseData, state: ExerciseState, timeMs?: number): {
+  validate(pose: PoseData, state: ExerciseState, timeMs?: number, segmentationMask?: any): {
     newPhase: MovementPhase;
     feedback: string[];
     isRepCompleted: boolean;
@@ -23,6 +23,8 @@ export interface IExerciseRule {
     pendingEntryCue?: string;
     /** Emitted on intermediate phase transitions so the track page can log partial progress. */
     pendingPhaseCompletion?: { phaseIndex: number; phaseName: string };
+    /** Real-time spine curvature and spline coordinates */
+    spineData?: any;
   };
   setRules(rules: any[]): void;
 }
@@ -107,6 +109,9 @@ export class MovementEngine {
     this.state.attemptCount = 0;
     this.state.attemptLog = [];
     this.resetRepMetadata();
+    if ((this.rule as any).reset) {
+      (this.rule as any).reset();
+    }
   }
 
   private resetRepMetadata(timeMs?: number) {
@@ -133,7 +138,7 @@ export class MovementEngine {
     this.state.currentPhase = MovementPhase.INITIALIZING;
   }
 
-  public processFrame(pose: PoseData, timeMs?: number): ExerciseState {
+  public processFrame(pose: PoseData, timeMs?: number, segmentationMask?: any): ExerciseState {
     if (!this.state.isStarted) return this.state;
 
     // Debugging: Log active rule once every 100 frames to avoid spam
@@ -141,7 +146,7 @@ export class MovementEngine {
       console.log('Active Engine Rule:', this.rule.constructor.name, 'Phase:', this.state.currentPhase);
     }
 
-    const result = this.rule.validate(pose, this.state, timeMs);
+    const result = this.rule.validate(pose, this.state, timeMs, segmentationMask);
     
     // Only log failed attempts immediately from the rule (e.g. form violations).
     // Successful attempts will be verified for minimum duration before being logged.
@@ -325,6 +330,8 @@ export class MovementEngine {
     this.state.pendingEntryCue = result.pendingEntryCue || undefined;
     // Pass through phase completion event for partial-progress logging
     this.state.pendingPhaseCompletion = result.pendingPhaseCompletion || undefined;
+    // Real-time spine curvature and contour spline
+    this.state.spineData = result.spineData || undefined;
 
     if (result.progressPct !== undefined) {
       this.state.progressPct = Math.min(100, Math.max(0, result.progressPct));

@@ -27,6 +27,10 @@ export default function HistoryPage() {
   const [error, setError] = useState('');
   const [user, setUser] = useState<{ id: string; name: string; email: string } | null>(null);
   
+  // Delete State
+  const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
@@ -57,6 +61,26 @@ export default function HistoryPage() {
       setError('Could not load your workout history.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!sessionToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/sessions/${sessionToDelete.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        throw new Error('Failed to delete session');
+      }
+      setSessions((prev) => prev.filter((s) => s.id !== sessionToDelete.id));
+      setSessionToDelete(null);
+    } catch (err) {
+      console.error('Error deleting session:', err);
+      alert('Failed to delete session. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -227,7 +251,7 @@ export default function HistoryPage() {
         ) : filteredSessions.length === 0 ? (
           <div className="rounded-[3rem] bg-surface-card border border-border p-12 text-center">
             <span className="material-symbols-outlined text-6xl text-fg-mute mb-4">history</span>
-            <h2 className="h3 font-bold text-fg">No sessions found</h2>
+            <h3 className="h3 font-bold text-fg">No sessions found</h3>
             <p className="mt-2 text-fg-mute">Adjust your filters to see more history.</p>
           </div>
         ) : (
@@ -254,7 +278,7 @@ export default function HistoryPage() {
                 }}
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
-                className="group relative flex flex-col gap-4 overflow-hidden rounded-2xl bg-surface-card border border-border p-5 md:px-6 transition-all hover:bg-surface-elev hover:shadow-lg md:flex-row md:items-center"
+                className="group relative flex flex-col gap-4 overflow-hidden rounded-2xl bg-surface-card border border-border p-5 md:px-6 transition-all hover:bg-surface-elev hover:shadow-lg md:flex-row md:items-center cursor-pointer"
                 onClick={() => router.push(`/history/${session.id}`)}
                 role="button"
               >
@@ -295,8 +319,22 @@ export default function HistoryPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end md:ml-8">
-                  <span className="material-symbols-outlined text-fg-mute transition-transform group-hover:translate-x-2 group-hover:text-flame">
+                <div className="flex items-center justify-end gap-2 md:ml-6">
+                  {/* Delete Session Button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSessionToDelete(session);
+                    }}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl text-fg-mute hover:bg-red-500/10 hover:text-red-500 transition-colors z-10"
+                    title="Delete session"
+                    aria-label="Delete session"
+                  >
+                    <span className="material-symbols-outlined text-xl">delete</span>
+                  </button>
+
+                  <span className="material-symbols-outlined text-fg-mute transition-transform group-hover:translate-x-1 group-hover:text-flame">
                     arrow_forward_ios
                   </span>
                 </div>
@@ -305,6 +343,63 @@ export default function HistoryPage() {
           </motion.div>
         )}
       </section>
+
+      {/* Delete Confirmation Modal */}
+      {sessionToDelete && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => !isDeleting && setSessionToDelete(null)}
+        >
+          <div 
+            className="w-full max-w-md rounded-3xl bg-surface-card border border-border p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-500 mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20">
+                <span className="material-symbols-outlined text-2xl">delete_forever</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-fg">Delete Session?</h3>
+                <p className="text-xs text-fg-mute">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-fg-mute leading-relaxed mb-6">
+              Are you sure you want to delete the workout data for <strong className="text-fg">{sessionToDelete.exercise_name}</strong> from <span className="text-fg font-medium">{formatDate(sessionToDelete.start_time)}</span>? All recorded reps, analytics, and attempt history for this session will be permanently removed.
+            </p>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setSessionToDelete(null)}
+                className="px-5 py-2.5 rounded-full text-sm font-semibold text-fg-mute hover:bg-surface-elev hover:text-fg transition-colors border border-border disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all shadow-lg shadow-red-500/20 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-sm">delete</span>
+                    <span>Delete Session</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Nav */}
       <nav className="fixed bottom-0 left-0 z-50 flex h-20 w-full items-center justify-around bg-surface-card border-t border-border px-4 text-fg shadow-2xl md:hidden">

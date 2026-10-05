@@ -5,7 +5,7 @@ import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { PoseData } from '@workout/shared';
 
 interface WebcamTrackerProps {
-  onPose: (pose: PoseData) => void;
+  onPose: (pose: PoseData, segmentationMask?: any) => void;
   onVideoSize?: (size: { width: number; height: number }) => void;
   children?: React.ReactNode;
   width?: number;
@@ -58,7 +58,8 @@ export const WebcamTracker: React.FC<WebcamTrackerProps> = ({
           delegate: "GPU"
         },
         runningMode: "VIDEO",
-        numPoses: 1
+        numPoses: 1,
+        outputSegmentationMasks: true
       });
       setLandmarker(poseLandmarker);
       setIsLoading(false);
@@ -71,14 +72,30 @@ export const WebcamTracker: React.FC<WebcamTrackerProps> = ({
 
     const video = videoRef.current;
 
-    // Request camera
-    navigator.mediaDevices.getUserMedia({ 
-      video: { 
-        width, 
-        height,
-        frameRate: { ideal: 30, max: 60 }
-      } 
-    }).then((stream) => {
+    // Request camera with high-framerate hardware constraints and standard native sensor bins
+    const getCameraStream = async () => {
+      try {
+        return await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: width || 640, max: 1280 }, 
+            height: { ideal: height || 480, max: 720 },
+            frameRate: { ideal: 30, min: 24, max: 60 },
+            facingMode: 'user'
+          } 
+        });
+      } catch (err) {
+        // Fallback for strict hardware drivers
+        return await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 640 }, 
+            height: { ideal: 480 },
+            frameRate: { ideal: 30 }
+          } 
+        });
+      }
+    };
+
+    getCameraStream().then((stream) => {
       video.srcObject = stream;
       video.onloadedmetadata = () => {
         onVideoSizeRef.current?.({
@@ -87,6 +104,8 @@ export const WebcamTracker: React.FC<WebcamTrackerProps> = ({
         });
         video.play();
       };
+    }).catch(err => {
+      console.error('Camera stream error:', err);
     });
 
     let lastVideoTime = -1;
@@ -97,8 +116,9 @@ export const WebcamTracker: React.FC<WebcamTrackerProps> = ({
     const renderLoop = () => {
       if (video.currentTime !== lastVideoTime && video.videoWidth > 0 && video.videoHeight > 0) {
         lastVideoTime = video.currentTime;
+        let results: any = null;
         try {
-          const results = landmarker.detectForVideo(video, performance.now());
+          results = landmarker.detectForVideo(video, performance.now());
 
           if (results.landmarks && results.landmarks.length > 0) {
             frameCount++;
@@ -111,7 +131,7 @@ export const WebcamTracker: React.FC<WebcamTrackerProps> = ({
             }
 
             const pose: PoseData = {};
-            results.landmarks[0].forEach((landmark, idx) => {
+            results.landmarks[0].forEach((landmark: any, idx: number) => {
               const name = LANDMARK_NAMES[idx];
 
               pose[name] = {
@@ -121,10 +141,19 @@ export const WebcamTracker: React.FC<WebcamTrackerProps> = ({
                 visibility: landmark.visibility
               };
             });
-            onPoseRef.current(pose);
+            const mask = (results.segmentationMasks && results.segmentationMasks.length > 0)
+              ? results.segmentationMasks[0]
+              : undefined;
+            onPoseRef.current(pose, mask);
           }
         } catch (error) {
           console.error("MediaPipe detection error:", error);
+        } finally {
+          if (results && results.segmentationMasks) {
+            for (const mask of results.segmentationMasks) {
+              try { mask?.close?.(); } catch (e) {}
+            }
+          }
         }
       }
       animationId = requestAnimationFrame(renderLoop);

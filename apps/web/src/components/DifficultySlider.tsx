@@ -71,6 +71,7 @@ export function DifficultySlider({ label, value, min, max, step = 1, direction, 
         {isEditing ? (
           <input 
             type="number"
+            step={step}
             value={editValue}
             onChange={e => setEditValue(e.target.value)}
             onBlur={handleBlur}

@@ -168,6 +168,92 @@ const ALL_MASTER_METRICS = [
           '• Form Check / Fault Alert: Shin medial swing without knee flair > 20°.'
   },
   {
+    key: 'HIP_FLEXION',
+    name: 'Hip Flexion Angle',
+    category: 'Hips & Pelvis',
+    min: 0,
+    max: 130,
+    step: 1,
+    default_val: 90,
+    dir: 'asc',
+    desc: 'Active anterior elevation of thigh relative to vertical standing posture (0°-130°). Measures iliopsoas/rectus femoris capacity and anterior hip mobility in both front and sagittal views.\n\n' +
+          '• Standing Rest / Lockout: <= 20° (Leg straight down on the floor).\n' +
+          '• Half Lift: 40° to 60° (Partial knee elevation).\n' +
+          '• 90° Horizontal Thigh: >= 75° to 90° (Standard target for standing hip rotations and march assessments).\n' +
+          '• High Knee / Deep Flexion: >= 100° to 120° (Deep athletic knee drive).'
+  },
+  {
+    key: 'LEFT_HIP_FLEXION',
+    name: 'Left Hip Flexion',
+    category: 'Hips & Pelvis',
+    min: 0,
+    max: 130,
+    step: 1,
+    default_val: 90,
+    dir: 'asc',
+    desc: 'Active anterior elevation and lift of left thigh from vertical standing posture (0°-130°).\n\n' +
+          '• Standing Rest: <= 20°.\n' +
+          '• Target Lift (90°): >= 75°.\n' +
+          '• Active Hold Threshold: >= 60°.'
+  },
+  {
+    key: 'RIGHT_HIP_FLEXION',
+    name: 'Right Hip Flexion',
+    category: 'Hips & Pelvis',
+    min: 0,
+    max: 130,
+    step: 1,
+    default_val: 90,
+    dir: 'asc',
+    desc: 'Active anterior elevation and lift of right thigh from vertical standing posture (0°-130°).\n\n' +
+          '• Standing Rest: <= 20°.\n' +
+          '• Target Lift (90°): >= 75°.\n' +
+          '• Active Hold Threshold: >= 60°.'
+  },
+  {
+    key: 'HIP_EXTENSION',
+    name: 'Hip Extension Angle',
+    category: 'Hips & Pelvis',
+    min: 0,
+    max: 60,
+    step: 1,
+    default_val: 30,
+    dir: 'asc',
+    desc: 'Active posterior reach and extension of thigh backward from vertical standing posture in sagittal view (0°-60°). Audits gluteus maximus engagement and psoas/anterior hip capsule length.\n\n' +
+          '• Standing Rest / Lockout: <= 10° (Leg straight down).\n' +
+          '• Beginner / Risk Screening: >= 15° (Basic hip clearance without excessive lumbar lordosis).\n' +
+          '• Intermediate / Functional Range: >= 30° (Healthy stride extension and athletic hip power).\n' +
+          '• Advanced / Athletic Capacity: >= 45° (Sprinter / dancer sagittal hip clearance).'
+  },
+  {
+    key: 'LEFT_HIP_EXTENSION',
+    name: 'Left Hip Extension',
+    category: 'Hips & Pelvis',
+    min: 0,
+    max: 60,
+    step: 1,
+    default_val: 30,
+    dir: 'asc',
+    desc: 'Active posterior extension of left thigh backward from vertical standing posture (0°-60°).\n\n' +
+          '• Standing Rest: <= 10°.\n' +
+          '• Target Extension: >= 30°.\n' +
+          '• Active Hold Threshold: >= 15°.'
+  },
+  {
+    key: 'RIGHT_HIP_EXTENSION',
+    name: 'Right Hip Extension',
+    category: 'Hips & Pelvis',
+    min: 0,
+    max: 60,
+    step: 1,
+    default_val: 30,
+    dir: 'asc',
+    desc: 'Active posterior extension of right thigh backward from vertical standing posture (0°-60°).\n\n' +
+          '• Standing Rest: <= 10°.\n' +
+          '• Target Extension: >= 30°.\n' +
+          '• Active Hold Threshold: >= 15°.'
+  },
+  {
     key: 'HIP_HINGE_ANGLE',
     name: 'Hip Hinge Angle',
     category: 'Hips & Pelvis',
@@ -232,6 +318,38 @@ const ALL_MASTER_METRICS = [
           '• Form Check / Fault Alert: In isolated hip CARs or bridges: <= 20° (alerts if athlete twists torso to fake joint range).'
   },
   {
+    key: 'SPINE_FLEXION',
+    name: 'Spine Sagittal Flexion',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 75,
+    step: 1,
+    default_val: 35,
+    dir: 'asc',
+    desc: 'Active forward rounding and sagittal flexion of thoracic and lumbar spine relative to vertical standing posture (0°-75°). Audits spinal disc decompression, paraspinal mobility, and segmental flexion capacity without hip hinge compensation.\n\n' +
+          '• Standing Neutral: <= 10° (Upright spinal alignment).\n' +
+          '• Beginner / Risk Screening: >= 25° (Basic functional forward spinal curling).\n' +
+          '• Intermediate / Functional Range: >= 38° (Healthy full-range thoracic/lumbar flexion).\n' +
+          '• Advanced / Athletic Capacity: >= 50° (Gymnast / martial artist deep spinal flexion).\n' +
+          '• Form Check / Fault Alert: If Hip Hinge Angle < 160°, athlete is bending at the waist/hips instead of flexing spine.'
+  },
+  {
+    key: 'SPINE_EXTENSION',
+    name: 'Spine Sagittal Extension',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 60,
+    step: 1,
+    default_val: 25,
+    dir: 'asc',
+    desc: 'Active backward arching and sagittal extension of thoracic and lumbar spine relative to vertical standing posture (0°-60°). Audits anterior longitudinal ligament length, rectus abdominis compliance, and thoracic extension capacity.\n\n' +
+          '• Standing Neutral: <= 8°.\n' +
+          '• Beginner / Risk Screening: >= 15° (Minimal extension to counter sedentary kyphosis).\n' +
+          '• Intermediate / Functional Range: >= 25° (Healthy thoracic extension for overhead lifting and posture).\n' +
+          '• Advanced / Athletic Capacity: >= 38° (High-level backbridge / gymnastics arching).\n' +
+          '• Form Check / Fault Alert: If Hip Hinge Angle < 160° or pelvic sway > 0.10, athlete is thrusting hips instead of extending spine.'
+  },
+  {
     key: 'SPINE_LATERAL_FLEXION',
     name: 'Spine Lateral Flexion Angle',
     category: 'Spine & Trunk',
@@ -282,7 +400,7 @@ const ALL_MASTER_METRICS = [
     category: 'Spine & Trunk',
     min: 0.1,
     max: 1.0,
-    step: 0.05,
+    step: 0.01,
     default_val: 0.95,
     dir: 'asc',
     desc: 'Real-time ratio of instantaneous torso height vs calibrated standing baseline (0.1-1.0). Detects spinal flexion, buckling under load, or "butt wink".\n\n' +
@@ -290,6 +408,21 @@ const ALL_MASTER_METRICS = [
           '• Intermediate / Functional Range: >= 0.92 (Maintains rigid spinal column throughout full movement).\n' +
           '• Advanced / Athletic Capacity: >= 0.97 (Zero axial torso collapsing even in deep squat hole).\n' +
           '• Form Check / Fault Alert: Trigger voice cue "Don\'t round your back!" if ratio drops < 0.88.'
+  },
+  {
+    key: 'CERVICAL_SPINE_ALIGNMENT',
+    name: 'Cervical Spine Alignment Angle',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 180,
+    step: 1,
+    default_val: 170,
+    dir: 'asc',
+    desc: 'Cervicothoracic alignment angle formed by Ear -> Shoulder -> Hip (0°-180°). Audits head-neck packing, craniocervical flexion, and detects forward head jutting / hyperextension.\n\n' +
+          '• Beginner / Risk Screening: >= 140° (Prevents excessive cervical spine strain and turtle-necking).\n' +
+          '• Intermediate / Functional Range: >= 160° (Neutral head packed in alignment with thoracic spine).\n' +
+          '• Advanced / Athletic Capacity: >= 170° (Flawless neutral cervical alignment under dynamic load).\n' +
+          '• Form Check / Fault Alert: Trigger voice cue "Keep your neck aligned with your spine!" if angle drops < 140° during flexion or hyperextends.'
   },
 
   // ==========================================
@@ -339,6 +472,49 @@ const ALL_MASTER_METRICS = [
           '• Intermediate / Functional Range: >= 165°.\n' +
           '• Advanced / Athletic Capacity: >= 175°.\n' +
           '• Form Check / Fault Alert: Bilateral asymmetry deficit > 15° flags unilateral lat tightness.'
+  },
+  {
+    key: 'SHOULDER_EXTENSION',
+    name: 'Shoulder Extension Angle',
+    category: 'Shoulders & Scapula',
+    min: 0,
+    max: 90,
+    step: 1,
+    default_val: 50,
+    dir: 'asc',
+    desc: 'Backward reach angle of arm behind the torso in the sagittal plane (0°-90°). Audits posterior deltoid, latissimus dorsi, and anterior shoulder capsule flexibility.\n\n' +
+          '• Beginner / Risk Screening: >= 35° (Basic functional reach behind back).\n' +
+          '• Intermediate / Functional Range: >= 50° (Healthy athletic extension; reaches 50°-60°).\n' +
+          '• Advanced / Athletic Capacity: >= 65° (Elite extension capacity without forward torso pitch).\n' +
+          '• Form Check / Fault Alert: Trigger "Do not lean forward to cheat range!" if Torso Angle > 8°.'
+  },
+  {
+    key: 'LEFT_SHOULDER_EXTENSION',
+    name: 'Left Shoulder Extension',
+    category: 'Shoulders & Scapula',
+    min: 0,
+    max: 90,
+    step: 1,
+    default_val: 50,
+    dir: 'asc',
+    desc: 'Left arm backward reach angle behind torso in sagittal plane (0°-90°).\n\n' +
+          '• Beginner: >= 35°.\n' +
+          '• Intermediate: >= 50°.\n' +
+          '• Advanced: >= 65°.'
+  },
+  {
+    key: 'RIGHT_SHOULDER_EXTENSION',
+    name: 'Right Shoulder Extension',
+    category: 'Shoulders & Scapula',
+    min: 0,
+    max: 90,
+    step: 1,
+    default_val: 50,
+    dir: 'asc',
+    desc: 'Right arm backward reach angle behind torso in sagittal plane (0°-90°).\n\n' +
+          '• Beginner: >= 35°.\n' +
+          '• Intermediate: >= 50°.\n' +
+          '• Advanced: >= 65°.'
   },
   {
     key: 'SHOULDER_ABDUCTION_ANGLE',
@@ -1071,6 +1247,175 @@ const ALL_MASTER_METRICS = [
           '• Intermediate / Functional Range: 12 - 25 (Standard 2-second controlled lowering tempo).\n' +
           '• Advanced / Athletic Capacity: 8 - 18 (Strict tempo deceleration under maximum loads).\n' +
           '• Form Check / Fault Alert: Trigger "Slow down your descent!" if > 45.'
+  },
+  {
+    key: 'HIP_SAGITTAL_SHIFT',
+    name: 'Hip Sagittal Shift',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 50,
+    step: 1,
+    default_val: 0,
+    dir: 'asc',
+    desc: 'Forward horizontal displacement of the hip from its initial calibrated setup position (0-50 units). Used specifically in side-profile views to detect when a user leans forward or detaches their hips from a wall.\n\n' +
+          '• Beginner / Risk Screening: <= 10 (Allowable slight forward shift during initial learning).\n' +
+          '• Intermediate / Functional Range: <= 5 (Minimal hip detachment, maintaining core stability).\n' +
+          '• Advanced / Athletic Capacity: <= 2 (Perfectly anchored pelvis without any forward glide).\n' +
+          '• Form Check / Fault Alert: Trigger "Hips detached from the wall! Stop there." if > 5.'
+  },
+  {
+    key: 'SPINE_CURVATURE_INDEX',
+    name: 'Spine Curvature Index',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 75,
+    step: 1,
+    default_val: 35,
+    dir: 'asc',
+    desc: 'Mathematical parabolic curvature (a * 10,000) of the posterior silhouette contour along the sagittal back profile (0-75 units). Detects real-time segmental articulation across thoracic and lumbar spine.\n\n' +
+          '• Standing Neutral / Flat Back: <= 12 (Natural spinal curves, minimal rounding).\n' +
+          '• Segmental Articulation / Wave Initiation: 15 - 28 (Smooth flexion curling starting from cervical/thoracic).\n' +
+          '• Deep Curvature / Maximal Spinal Flexion: 30 - 55+ (Full segmental thoracic and lumbar flexion in Jefferson curl or Cat pose).\n' +
+          '• Kinematic Fallback Mode: Seamlessly computes via torso compression ratio if silhouette mask is obstructed.'
+  },
+  {
+    key: 'CERVICAL_UPPER_ANGLE',
+    name: 'Upper Cervical (C1–C3) Angle',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 45,
+    step: 1,
+    default_val: 15,
+    dir: 'asc',
+    desc: 'Localized sagittal deflection angle of the upper cervical spine / suboccipital complex (C1–C3) relative to vertical (0°-45°).\n\n' +
+          '• Neutral Head Posture: <= 12° (Balanced cranial alignment over cervical spine).\n' +
+          '• Forward Cranial Wave: 15° - 25° (Controlled chin tuck and suboccipital flexion initiation).\n' +
+          '• Fault / Compensation: > 28° (Excessive chin poking / forward head tilt overcompensation).'
+  },
+  {
+    key: 'CERVICOTHORACIC_ANGLE',
+    name: 'Cervicothoracic (C4–C7) Hinge Angle',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 50,
+    step: 1,
+    default_val: 18,
+    dir: 'asc',
+    desc: 'Sagittal flexion hinge angle at the base of the neck / cervicothoracic junction (C4–C7 / T1) (0°-50°).\n\n' +
+          '• Neutral Standing: <= 10°.\n' +
+          '• Controlled Neck Flexion: 15° - 25°.\n' +
+          '• Fault / Shear Alert: > 30° (Excessive localized neck craning without thoracic articulation).'
+  },
+  {
+    key: 'THORACIC_UPPER_ANGLE',
+    name: 'Upper Thoracic (T1–T4) Angle',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 45,
+    step: 1,
+    default_val: 20,
+    dir: 'asc',
+    desc: 'Localized sagittal deflection and kyphosis initiation across upper thoracic vertebrae (T1–T4) (0°-45°).\n\n' +
+          '• Neutral Upright: <= 8°.\n' +
+          '• Healthy Articulation: 15° - 25°.\n' +
+          '• Hypomobility / Stiffness Fault: < 5° when rounding is requested.'
+  },
+  {
+    key: 'THORACIC_MID_ANGLE',
+    name: 'Mid-Thoracic (T5–T8) Curvature Angle',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 55,
+    step: 1,
+    default_val: 28,
+    dir: 'asc',
+    desc: 'Peak curvature angle across the mid-thoracic spine (T5–T8 apex) (0°-55°). The core diagnostic metric for thoracic mobility assessments (Jefferson curls, Cat-Cow, Wall Peel).\n\n' +
+          '• Standing Flat: <= 10°.\n' +
+          '• Moderate Flexion: 18° - 32°.\n' +
+          '• Deep Thoracic Mobility: >= 35°.'
+  },
+  {
+    key: 'THORACOLUMBAR_ANGLE',
+    name: 'Thoracolumbar (T9–T12) Angle',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 40,
+    step: 1,
+    default_val: 18,
+    dir: 'asc',
+    desc: 'Deflection angle at the lower ribcage / thoracolumbar junction (T9–T12) (0°-40°). Monitors mid-spine rotational pivot and prevents rib flaring / hinge shear.\n\n' +
+          '• Normal Range: 10° - 25°.\n' +
+          '• Over-Hinge Alert: > 30°.'
+  },
+  {
+    key: 'LUMBAR_UPPER_ANGLE',
+    name: 'Upper Lumbar (L1–L3) Angle',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 35,
+    step: 1,
+    default_val: 12,
+    dir: 'asc',
+    desc: 'Sagittal curvature angle across upper lumbar vertebrae (L1–L3) (0°-35°). Audits core bracing integrity and lumbar lordosis flattening under flexion.\n\n' +
+          '• Neutral Lordosis: <= 8°.\n' +
+          '• Controlled Flexion: 10° - 20°.'
+  },
+  {
+    key: 'LUMBOSACRAL_ANGLE',
+    name: 'Lumbosacral (L4–S1) Base Angle',
+    category: 'Spine & Trunk',
+    min: 0,
+    max: 35,
+    step: 1,
+    default_val: 10,
+    dir: 'asc',
+    desc: 'Localized shear / hinge angle at the lumbosacral junction (L4–L5–S1) relative to pelvis (0°-35°).\n\n' +
+          '• Neutral Spine: <= 8°.\n' +
+          '• Controlled Wave: 10° - 18°.\n' +
+          '• Form Fault (Pelvic Hinge Cheating): > 22° (Flags bending from lower back instead of upper thoracic).'
+  },
+  {
+    key: 'FOREARM_SAGITTAL_ROTATION',
+    name: 'Forearm Sagittal Rotation Arc',
+    category: 'Arms & Hands',
+    min: 0,
+    max: 180,
+    step: 1,
+    default_val: 0,
+    dir: 'asc',
+    desc: 'Continuous sagittal sweep angle of active forearm relative to vertical (0°-180°). 0° = pointing straight up near ear, 90° = horizontal, 180° = pointing straight down toward floor. Used in side-view shoulder rotation assessments.\n\n' +
+          '• Beginner / Risk Screening: Setup: <= 20°, Internal Sweep: >= 140°.\n' +
+          '• Intermediate / Functional Range: Setup: <= 15°, Internal Sweep: >= 165°.\n' +
+          '• Advanced / Athletic Capacity: Setup: <= 5°, Internal Sweep: >= 175° (Full unrestricted glenohumeral rotation).\n' +
+          '• Form Check / Fault Alert: Combine with ELBOW_ANGLE (80°-100°) to ensure 90° elbow lock throughout.'
+  },
+  {
+    key: 'LEFT_FOREARM_SAGITTAL_ROTATION',
+    name: 'Left Forearm Sagittal Rotation',
+    category: 'Arms & Hands',
+    min: 0,
+    max: 180,
+    step: 1,
+    default_val: 0,
+    dir: 'asc',
+    desc: 'Continuous sagittal sweep angle of left forearm relative to vertical (0°-180°). 0° = straight up near ear, 90° = horizontal, 180° = straight down toward floor.\n\n' +
+          '• Beginner: Sweep >= 140°.\n' +
+          '• Intermediate: Sweep >= 165°.\n' +
+          '• Advanced: Sweep >= 175°.'
+  },
+  {
+    key: 'RIGHT_FOREARM_SAGITTAL_ROTATION',
+    name: 'Right Forearm Sagittal Rotation',
+    category: 'Arms & Hands',
+    min: 0,
+    max: 180,
+    step: 1,
+    default_val: 0,
+    dir: 'asc',
+    desc: 'Continuous sagittal sweep angle of right forearm relative to vertical (0°-180°). 0° = straight up near ear, 90° = horizontal, 180° = straight down toward floor.\n\n' +
+          '• Beginner: Sweep >= 140°.\n' +
+          '• Intermediate: Sweep >= 165°.\n' +
+          '• Advanced: Sweep >= 175°.'
   }
 ];
 

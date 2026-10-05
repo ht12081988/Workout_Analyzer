@@ -1,6 +1,6 @@
 import { IExerciseRule } from './MovementEngine';
-import { MovementPhase, PoseData, ExerciseState, AttemptLogEntry, POSE_LANDMARKS } from './types';
-import { calculateAngle } from './angle-utils';
+import { MovementPhase, PoseData, ExerciseState, AttemptLogEntry, POSE_LANDMARKS, SpineCurvatureResult } from './types';
+import { calculateAngle, calculateSpineCurvature } from './angle-utils';
 
 export class DynamicRule implements IExerciseRule {
   private rules: any[] = [];
@@ -26,6 +26,7 @@ export class DynamicRule implements IExerciseRule {
   private previousPose: PoseData | null = null;
   private lastTimeMs: number = 0;
   private previousHipY: number | null = null;
+  private phase0CueEmitted: boolean = false;
   
   public setRules(rules: any[]): void {
     this.rules = rules;
@@ -33,6 +34,26 @@ export class DynamicRule implements IExerciseRule {
     if (dynamicRuleRow && dynamicRuleRow.threshold_value) {
       this.dynamicProfile = dynamicRuleRow.threshold_value;
     }
+    this.reset();
+  }
+
+  public reset(): void {
+    this.currentPhaseIndex = 0;
+    this.isRepCalibrated = false;
+    this.phase0CueEmitted = false;
+    this.consecutiveTransitionFrames = 0;
+    this.currentPhaseDwellFrames = 0;
+    this.failedChecksThisRep.clear();
+    this.setupWarningsThisRep.clear();
+    this.consecutiveFailures.clear();
+    this.baseTorsoHeight = null;
+    this.initialHipX = null;
+    this.initialHeelTilt = null;
+    this.initialLeftHeelTilt = null;
+    this.initialRightHeelTilt = null;
+    this.previousPose = null;
+    this.lastTimeMs = 0;
+    this.previousHipY = null;
   }
 
   // Helper to calculate any metric from the Master Metrics Library
@@ -80,10 +101,21 @@ export class DynamicRule implements IExerciseRule {
       }
       case 'TORSO_ANGLE_VERT': {
         const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
+        const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER];
         const lHip = pose[POSE_LANDMARKS.LEFT_HIP];
-        if (lShoulder && lHip) {
+        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP];
+
+        const shoulder = (rShoulder && (rShoulder.visibility || 0) > (lShoulder?.visibility || 0))
+          ? rShoulder
+          : (lShoulder || rShoulder);
+
+        const hip = (rHip && (rHip.visibility || 0) > (lHip?.visibility || 0))
+          ? rHip
+          : (lHip || rHip);
+
+        if (shoulder && hip) {
           // Angle with a true vertical drop from the hip
-          return calculateAngle(lShoulder, lHip, { x: lHip.x, y: lHip.y - 1.0 });
+          return calculateAngle(shoulder, hip, { x: hip.x, y: hip.y - 1.0 });
         }
         return 0;
       }
@@ -436,6 +468,52 @@ export class DynamicRule implements IExerciseRule {
         const rEr = DynamicRule.calculateMetric('RIGHT_HIP_EXTERNAL_ROTATION', pose, state);
         return Math.max(lEr, rEr);
       }
+      case 'LEFT_HIP_FLEXION': {
+        return DynamicRule.getSagittalHipAngles('LEFT', pose, state).flexion;
+      }
+      case 'RIGHT_HIP_FLEXION': {
+        return DynamicRule.getSagittalHipAngles('RIGHT', pose, state).flexion;
+      }
+      case 'HIP_FLEXION': {
+        const lFlex = DynamicRule.calculateMetric('LEFT_HIP_FLEXION', pose, state);
+        const rFlex = DynamicRule.calculateMetric('RIGHT_HIP_FLEXION', pose, state);
+        return Math.max(lFlex, rFlex);
+      }
+      case 'LEFT_HIP_EXTENSION': {
+        return DynamicRule.getSagittalHipAngles('LEFT', pose, state).extension;
+      }
+      case 'RIGHT_HIP_EXTENSION': {
+        return DynamicRule.getSagittalHipAngles('RIGHT', pose, state).extension;
+      }
+      case 'HIP_EXTENSION': {
+        const lExt = DynamicRule.calculateMetric('LEFT_HIP_EXTENSION', pose, state);
+        const rExt = DynamicRule.calculateMetric('RIGHT_HIP_EXTENSION', pose, state);
+        return Math.max(lExt, rExt);
+      }
+      case 'LEFT_HIP_HINGE_ANGLE': {
+        const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
+        const lHip = pose[POSE_LANDMARKS.LEFT_HIP];
+        const lKnee = pose[POSE_LANDMARKS.LEFT_KNEE];
+        if (lShoulder && lHip && lKnee) {
+          return Math.round(calculateAngle(lShoulder, lHip, lKnee));
+        }
+        return 0;
+      }
+      case 'RIGHT_HIP_HINGE_ANGLE': {
+        const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER];
+        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP];
+        const rKnee = pose[POSE_LANDMARKS.RIGHT_KNEE];
+        if (rShoulder && rHip && rKnee) {
+          return Math.round(calculateAngle(rShoulder, rHip, rKnee));
+        }
+        return 0;
+      }
+      case 'HIP_HINGE_ANGLE': {
+        const lHinge = DynamicRule.calculateMetric('LEFT_HIP_HINGE_ANGLE', pose, state);
+        const rHinge = DynamicRule.calculateMetric('RIGHT_HIP_HINGE_ANGLE', pose, state);
+        if (lHinge > 0 && rHinge > 0) return Math.round((lHinge + rHinge) / 2);
+        return lHinge || rHinge || 0;
+      }
       case 'THORACOLUMBAR_ROTATION': {
         const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
         const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER];
@@ -449,6 +527,12 @@ export class DynamicRule implements IExerciseRule {
           return Math.round(diff);
         }
         return 0;
+      }
+      case 'SPINE_FLEXION': {
+        return DynamicRule.getSagittalSpineAngles(pose, state).flexion;
+      }
+      case 'SPINE_EXTENSION': {
+        return DynamicRule.getSagittalSpineAngles(pose, state).extension;
       }
       case 'SPINE_LATERAL_FLEXION': {
         const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
@@ -466,6 +550,47 @@ export class DynamicRule implements IExerciseRule {
           return Math.round(tiltDeg);
         }
         return 0;
+      }
+      case 'CERVICAL_SPINE_ALIGNMENT':
+      case 'CERVICOTHORACIC_ANGLE': {
+        const lEar = pose[POSE_LANDMARKS.LEFT_EAR];
+        const rEar = pose[POSE_LANDMARKS.RIGHT_EAR];
+        const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
+        const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER];
+        const lHip = pose[POSE_LANDMARKS.LEFT_HIP];
+        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP];
+
+        const ear = (lEar && (lEar.visibility || 0) > (rEar?.visibility || 0)) ? lEar : (rEar || lEar);
+        const shoulder = (lShoulder && (lShoulder.visibility || 0) > (rShoulder?.visibility || 0)) ? lShoulder : (rShoulder || lShoulder);
+        const hip = (lHip && (lHip.visibility || 0) > (rHip?.visibility || 0)) ? lHip : (rHip || lHip);
+
+        if (ear && shoulder && hip) {
+          return Math.round(calculateAngle(ear, shoulder, hip));
+        }
+        return 180;
+      }
+      case 'DYN_TORSO_COMPRESSION': {
+        const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
+        const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER];
+        const lHip = pose[POSE_LANDMARKS.LEFT_HIP];
+        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP];
+
+        const shoulder = (lShoulder && (lShoulder.visibility || 0) > (rShoulder?.visibility || 0))
+          ? lShoulder
+          : (rShoulder || lShoulder);
+        const hip = (lHip && (lHip.visibility || 0) > (rHip?.visibility || 0))
+          ? lHip
+          : (rHip || lHip);
+
+        if (shoulder && hip && state && state.baseTorsoHeight && state.baseTorsoHeight > 0.05) {
+          const dx = shoulder.x - hip.x;
+          const dy = shoulder.y - hip.y;
+          const dz = (shoulder.z || 0) - (hip.z || 0);
+          const currentTorsoLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          const ratio = currentTorsoLen / state.baseTorsoHeight;
+          return Math.round(Math.min(1.2, Math.max(0.1, ratio)) * 100) / 100;
+        }
+        return 1.0;
       }
       case 'SCAPULAR_ELEVATION_RATIO': {
         const lEar = pose[POSE_LANDMARKS.LEFT_EAR];
@@ -602,6 +727,46 @@ export class DynamicRule implements IExerciseRule {
         const rIr = DynamicRule.calculateMetric('RIGHT_SHOULDER_INTERNAL_ROTATION', pose, state);
         return Math.max(lIr, rIr);
       }
+      case 'LEFT_FOREARM_SAGITTAL_ROTATION': {
+        const lElbow = pose['LEFT_ELBOW'];
+        const lWrist = pose['LEFT_WRIST'] || pose['LEFT_INDEX'];
+        if (lElbow && lWrist) {
+          const dx = lWrist.x - lElbow.x;
+          const dy = lWrist.y - lElbow.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          if (len > 0.01) {
+            const cosTheta = Math.max(-1, Math.min(1, -dy / len));
+            return Math.round(Math.acos(cosTheta) * (180 / Math.PI));
+          }
+        }
+        return 0;
+      }
+      case 'RIGHT_FOREARM_SAGITTAL_ROTATION': {
+        const rElbow = pose['RIGHT_ELBOW'];
+        const rWrist = pose['RIGHT_WRIST'] || pose['RIGHT_INDEX'];
+        if (rElbow && rWrist) {
+          const dx = rWrist.x - rElbow.x;
+          const dy = rWrist.y - rElbow.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          if (len > 0.01) {
+            const cosTheta = Math.max(-1, Math.min(1, -dy / len));
+            return Math.round(Math.acos(cosTheta) * (180 / Math.PI));
+          }
+        }
+        return 0;
+      }
+      case 'FOREARM_SAGITTAL_ROTATION': {
+        const lRot = DynamicRule.calculateMetric('LEFT_FOREARM_SAGITTAL_ROTATION', pose, state);
+        const rRot = DynamicRule.calculateMetric('RIGHT_FOREARM_SAGITTAL_ROTATION', pose, state);
+        const lElbow = pose['LEFT_ELBOW'];
+        const rElbow = pose['RIGHT_ELBOW'];
+        const lVis = lElbow?.visibility ?? 0;
+        const rVis = rElbow?.visibility ?? 0;
+        if (rElbow && (!lElbow || rVis > lVis)) {
+          return rRot > 0 ? rRot : lRot;
+        }
+        return lRot > 0 ? lRot : rRot;
+      }
       case 'GRIP_WIDTH_RATIO': {
         const lWrist = pose['LEFT_WRIST'] || pose['LEFT_INDEX'];
         const rWrist = pose['RIGHT_WRIST'] || pose['RIGHT_INDEX'];
@@ -707,14 +872,61 @@ export class DynamicRule implements IExerciseRule {
         }
         return 0;
       }
+      case 'HIP_SAGITTAL_SHIFT': {
+        const lHip = pose[POSE_LANDMARKS.LEFT_HIP];
+        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP];
+        const lHeel = pose[POSE_LANDMARKS.LEFT_HEEL];
+        const rHeel = pose[POSE_LANDMARKS.RIGHT_HEEL];
+        const lAnkle = pose[POSE_LANDMARKS.LEFT_ANKLE];
+        const rAnkle = pose[POSE_LANDMARKS.RIGHT_ANKLE];
+
+        let currentHipX = 0;
+        const lVis = lHip?.visibility ?? 0;
+        const rVis = rHip?.visibility ?? 0;
+
+        if (lHip && rHip && Math.abs(lVis - rVis) < 0.25 && lVis > 0.4 && rVis > 0.4) {
+          currentHipX = (lHip.x + rHip.x) / 2;
+        } else if (rHip && (!lHip || rVis >= lVis)) {
+          currentHipX = rHip.x;
+        } else if (lHip) {
+          currentHipX = lHip.x;
+        } else {
+          return 0;
+        }
+
+        const torsoScale = (state.baseTorsoHeight && state.baseTorsoHeight > 0.05)
+          ? state.baseTorsoHeight
+          : 0.4;
+
+        if (state.initialHipX !== undefined && state.initialHipX !== null) {
+          const shift = Math.abs(currentHipX - state.initialHipX);
+          return Math.round((shift / torsoScale) * 100);
+        }
+
+        // Fallback if initialHipX not calibrated: calculate sagittal offset relative to base anchor (heels/ankles)
+        const baseAnchorX = (lHeel?.x || rHeel?.x || lAnkle?.x || rAnkle?.x);
+        if (baseAnchorX !== undefined) {
+          const shift = Math.abs(currentHipX - baseAnchorX);
+          return Math.round((shift / torsoScale) * 100);
+        }
+
+        return 0;
+      }
       case 'BODY_SWAY': {
         const lHip = pose[POSE_LANDMARKS.LEFT_HIP];
         const rHip = pose[POSE_LANDMARKS.RIGHT_HIP];
+        let currentHipX = 0;
         if (lHip && rHip) {
-          const currentHipX = (lHip.x + rHip.x) / 2;
-          if (state.initialHipX !== undefined && state.initialHipX !== null) {
-            return Math.abs(currentHipX - state.initialHipX) * 100;
-          }
+          currentHipX = (lHip.x + rHip.x) / 2;
+        } else if (lHip) {
+          currentHipX = lHip.x;
+        } else if (rHip) {
+          currentHipX = rHip.x;
+        } else {
+          return 0;
+        }
+        if (state.initialHipX !== undefined && state.initialHipX !== null) {
+          return Math.abs(currentHipX - state.initialHipX) * 100;
         }
         return 0;
       }
@@ -836,6 +1048,64 @@ export class DynamicRule implements IExerciseRule {
         const rElbow = pose['RIGHT_ELBOW'];
         if (rHip && rShoulder && rElbow) return calculateAngle(rHip, rShoulder, rElbow);
         return 0;
+      }
+      case 'LEFT_SHOULDER_EXTENSION': {
+        const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
+        const lHip = pose[POSE_LANDMARKS.LEFT_HIP];
+        const lWrist = pose['LEFT_WRIST'] || pose['LEFT_INDEX'] || pose['LEFT_ELBOW'];
+        if (lShoulder && lHip && lWrist) {
+          const eye = pose[POSE_LANDMARKS.LEFT_EYE] || pose[POSE_LANDMARKS.RIGHT_EYE] || pose[POSE_LANDMARKS.NOSE];
+          const ear = pose[POSE_LANDMARKS.LEFT_EAR] || pose[POSE_LANDMARKS.RIGHT_EAR];
+          const toe = pose[POSE_LANDMARKS.LEFT_FOOT_INDEX] || pose[POSE_LANDMARKS.RIGHT_FOOT_INDEX];
+          const heel = pose[POSE_LANDMARKS.LEFT_HEEL] || pose[POSE_LANDMARKS.RIGHT_HEEL];
+          let facingSign = 1;
+          if (eye && ear && Math.abs(eye.x - ear.x) > 0.01) {
+            facingSign = eye.x > ear.x ? 1 : -1;
+          } else if (toe && heel && Math.abs(toe.x - heel.x) > 0.01) {
+            facingSign = toe.x > heel.x ? 1 : -1;
+          }
+
+          const armForwardDisp = (lWrist.x - lShoulder.x) * facingSign;
+          if (armForwardDisp < -0.015) {
+            return calculateAngle(lHip, lShoulder, lWrist);
+          }
+        }
+        return 0;
+      }
+      case 'RIGHT_SHOULDER_EXTENSION': {
+        const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER];
+        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP];
+        const rWrist = pose['RIGHT_WRIST'] || pose['RIGHT_INDEX'] || pose['RIGHT_ELBOW'];
+        if (rShoulder && rHip && rWrist) {
+          const eye = pose[POSE_LANDMARKS.LEFT_EYE] || pose[POSE_LANDMARKS.RIGHT_EYE] || pose[POSE_LANDMARKS.NOSE];
+          const ear = pose[POSE_LANDMARKS.LEFT_EAR] || pose[POSE_LANDMARKS.RIGHT_EAR];
+          const toe = pose[POSE_LANDMARKS.LEFT_FOOT_INDEX] || pose[POSE_LANDMARKS.RIGHT_FOOT_INDEX];
+          const heel = pose[POSE_LANDMARKS.LEFT_HEEL] || pose[POSE_LANDMARKS.RIGHT_HEEL];
+          let facingSign = 1;
+          if (eye && ear && Math.abs(eye.x - ear.x) > 0.01) {
+            facingSign = eye.x > ear.x ? 1 : -1;
+          } else if (toe && heel && Math.abs(toe.x - heel.x) > 0.01) {
+            facingSign = toe.x > heel.x ? 1 : -1;
+          }
+
+          const armForwardDisp = (rWrist.x - rShoulder.x) * facingSign;
+          if (armForwardDisp < -0.015) {
+            return calculateAngle(rHip, rShoulder, rWrist);
+          }
+        }
+        return 0;
+      }
+      case 'SHOULDER_EXTENSION': {
+        const lExt = DynamicRule.calculateMetric('LEFT_SHOULDER_EXTENSION', pose, state);
+        const rExt = DynamicRule.calculateMetric('RIGHT_SHOULDER_EXTENSION', pose, state);
+        const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
+        const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER];
+        const lVis = lShoulder?.visibility ?? 0;
+        const rVis = rShoulder?.visibility ?? 0;
+        if (rShoulder && (!lShoulder || rVis > lVis)) {
+          return rExt > 0 ? rExt : lExt;
+        }
+        return lExt > 0 ? lExt : rExt;
       }
       case 'WRIST_ALIGNMENT': {
         const lElbow = pose['LEFT_ELBOW'];
@@ -995,8 +1265,245 @@ export class DynamicRule implements IExerciseRule {
         }
         return 0;
       }
+      case 'SPINE_CURVATURE_INDEX': {
+        return calculateSpineCurvature(pose, state).curvatureDegrees;
+      }
+      case 'CERVICAL_UPPER_ANGLE': {
+        const spine = calculateSpineCurvature(pose, state);
+        return spine.segmentalAngles?.cervicalUpperAngle ?? 0;
+      }
+      case 'CERVICOTHORACIC_ANGLE': {
+        const spine = calculateSpineCurvature(pose, state);
+        return spine.segmentalAngles?.cervicothoracicAngle ?? 0;
+      }
+      case 'THORACIC_UPPER_ANGLE': {
+        const spine = calculateSpineCurvature(pose, state);
+        return spine.segmentalAngles?.thoracicUpperAngle ?? 0;
+      }
+      case 'THORACIC_MID_ANGLE': {
+        const spine = calculateSpineCurvature(pose, state);
+        return spine.segmentalAngles?.thoracicMidAngle ?? 0;
+      }
+      case 'THORACOLUMBAR_ANGLE': {
+        const spine = calculateSpineCurvature(pose, state);
+        return spine.segmentalAngles?.thoracolumbarAngle ?? 0;
+      }
+      case 'LUMBAR_UPPER_ANGLE': {
+        const spine = calculateSpineCurvature(pose, state);
+        return spine.segmentalAngles?.lumbarUpperAngle ?? 0;
+      }
+      case 'LUMBOSACRAL_ANGLE': {
+        const spine = calculateSpineCurvature(pose, state);
+        return spine.segmentalAngles?.lumbosacralAngle ?? 0;
+      }
+      case 'SPINE_FLEXION': {
+        return DynamicRule.getSagittalSpineAngles(pose, state).flexion;
+      }
+      case 'SPINE_EXTENSION': {
+        return DynamicRule.getSagittalSpineAngles(pose, state).extension;
+      }
+      case 'DYN_TORSO_COMPRESSION': {
+        const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER] || pose['LEFT_SHOULDER'];
+        const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER] || pose['RIGHT_SHOULDER'];
+        const lHip = pose[POSE_LANDMARKS.LEFT_HIP] || pose['LEFT_HIP'];
+        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP] || pose['RIGHT_HIP'];
+        const shoulder = (lShoulder && rShoulder) ? { x: (lShoulder.x + rShoulder.x) / 2, y: (lShoulder.y + rShoulder.y) / 2 } : (lShoulder || rShoulder);
+        const hip = (lHip && rHip) ? { x: (lHip.x + rHip.x) / 2, y: (lHip.y + rHip.y) / 2 } : (lHip || rHip);
+        if (shoulder && hip) {
+          const currentTorso = Math.sqrt(Math.pow(shoulder.x - hip.x, 2) + Math.pow(shoulder.y - hip.y, 2));
+          if (state && state.baseTorsoHeight && state.baseTorsoHeight > 0.05) {
+            return Math.round((currentTorso / state.baseTorsoHeight) * 100) / 100;
+          }
+          return 1.0;
+        }
+        return 1.0;
+      }
+      case 'CERVICOTHORACIC_ANGLE': {
+        const lEar = pose[POSE_LANDMARKS.LEFT_EAR] || pose['LEFT_EAR'];
+        const rEar = pose[POSE_LANDMARKS.RIGHT_EAR] || pose['RIGHT_EAR'];
+        const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER] || pose['LEFT_SHOULDER'];
+        const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER] || pose['RIGHT_SHOULDER'];
+        const lHip = pose[POSE_LANDMARKS.LEFT_HIP] || pose['LEFT_HIP'];
+        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP] || pose['RIGHT_HIP'];
+        const ear = lEar || rEar;
+        const shoulder = (lShoulder && rShoulder) ? { x: (lShoulder.x + rShoulder.x) / 2, y: (lShoulder.y + rShoulder.y) / 2 } : (lShoulder || rShoulder);
+        const hip = (lHip && rHip) ? { x: (lHip.x + rHip.x) / 2, y: (lHip.y + rHip.y) / 2 } : (lHip || rHip);
+        if (ear && shoulder && hip) {
+          return calculateAngle(ear, shoulder, hip);
+        }
+        return 180;
+      }
       default:
         return 0;
+    }
+  }
+
+  public static getSagittalHipAngles(side: 'LEFT' | 'RIGHT', pose: PoseData, state: any = {}): { flexion: number; extension: number } {
+    const isLeft = side === 'LEFT';
+    const hip = pose[isLeft ? POSE_LANDMARKS.LEFT_HIP : POSE_LANDMARKS.RIGHT_HIP];
+    const knee = pose[isLeft ? POSE_LANDMARKS.LEFT_KNEE : POSE_LANDMARKS.RIGHT_KNEE];
+    const ankle = pose[isLeft ? POSE_LANDMARKS.LEFT_ANKLE : POSE_LANDMARKS.RIGHT_ANKLE];
+    const nose = pose[POSE_LANDMARKS.NOSE] || pose['NOSE'];
+    const lEar = pose[POSE_LANDMARKS.LEFT_EAR] || pose['LEFT_EAR'];
+    const rEar = pose[POSE_LANDMARKS.RIGHT_EAR] || pose['RIGHT_EAR'];
+    const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER] || pose['LEFT_SHOULDER'];
+    const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER] || pose['RIGHT_SHOULDER'];
+    const lHip = pose[POSE_LANDMARKS.LEFT_HIP] || pose['LEFT_HIP'];
+    const rHip = pose[POSE_LANDMARKS.RIGHT_HIP] || pose['RIGHT_HIP'];
+
+    if (!hip || (!knee && !ankle)) {
+      return { flexion: 0, extension: 0 };
+    }
+
+    // Determine if user is facing camera (Frontal) or sideways (Sagittal)
+    const shoulderSpan = (lShoulder && rShoulder) ? Math.abs(lShoulder.x - rShoulder.x) : 0;
+    const hipSpan = (lHip && rHip) ? Math.abs(lHip.x - rHip.x) : 0;
+    // Frontal view: shoulders and hips are clearly separated in width
+    // Sagittal view: shoulders and hips heavily overlap horizontally (shoulderSpan < 0.05, hipSpan < 0.04)
+    const isFrontal = shoulderSpan > 0.06 || hipSpan > 0.05;
+
+    if (isFrontal) {
+      // Frontal View: Flexion is vertical knee lift towards hip
+      const targetKnee = knee || ankle;
+      const dy = targetKnee.y - hip.y;
+      
+      // Determine standing thigh drop height
+      let standingDrop = 0.28;
+      const otherHip = isLeft ? rHip : lHip;
+      const otherKnee = isLeft ? pose[POSE_LANDMARKS.RIGHT_KNEE] : pose[POSE_LANDMARKS.LEFT_KNEE];
+      if (otherHip && otherKnee && Math.abs(otherKnee.y - otherHip.y) > 0.12) {
+        standingDrop = Math.abs(otherKnee.y - otherHip.y);
+      } else if (state && state.baseTorsoHeight) {
+        standingDrop = state.baseTorsoHeight * 0.85;
+      } else if (ankle && knee) {
+        standingDrop = Math.sqrt(Math.pow(ankle.x - knee.x, 2) + Math.pow(ankle.y - knee.y, 2));
+      }
+      standingDrop = Math.max(0.12, standingDrop);
+      
+      // When standing: dy = standingDrop -> liftRatio = 0 (0 deg)
+      // When knee lifted to hip level: dy = 0 -> liftRatio = 1.0 (90 deg)
+      // When knee lifted higher: dy < 0 -> liftRatio > 1.0 (> 90 deg)
+      const liftRatio = Math.max(0, (standingDrop - dy) / standingDrop);
+      const flexion = Math.round(Math.min(130, liftRatio * 90));
+      return { flexion, extension: 0 };
+    }
+
+    // Sagittal (Side) View: Determine facing direction (+1 = facing right towards +X, -1 = facing left towards -X)
+    let facingDir = 1;
+    if (state && state.baseFacingDir) {
+      facingDir = state.baseFacingDir;
+    } else {
+      const foot = pose[isLeft ? POSE_LANDMARKS.LEFT_FOOT_INDEX : POSE_LANDMARKS.RIGHT_FOOT_INDEX];
+      const heel = pose[isLeft ? POSE_LANDMARKS.LEFT_HEEL : POSE_LANDMARKS.RIGHT_HEEL];
+      if (foot && heel && Math.abs(foot.x - heel.x) > 0.005) {
+        facingDir = foot.x > heel.x ? 1 : -1;
+      } else {
+        const ear = isLeft ? (lEar || rEar) : (rEar || lEar);
+        if (nose && ear && Math.abs(nose.x - ear.x) > 0.008) {
+          facingDir = nose.x > ear.x ? 1 : -1;
+        } else if (nose && hip && Math.abs(nose.x - hip.x) > 0.01) {
+          facingDir = nose.x > hip.x ? 1 : -1;
+        }
+      }
+      if (state && !state.baseFacingDir) {
+        state.baseFacingDir = facingDir;
+      }
+    }
+
+    // Use ankle if available (or knee), to measure full leg swing angle
+    const target = ankle || knee;
+    const dxSag = (target.x - hip.x) * facingDir;
+    const dy = Math.max(0.001, target.y - hip.y); // Positive downwards
+
+    if (dxSag > 0.015) {
+      // Moving FORWARD (Flexion)
+      const flexion = Math.round(Math.min(130, Math.atan2(dxSag, dy) * (180 / Math.PI)));
+      return { flexion, extension: 0 };
+    } else if (dxSag < -0.015) {
+      // Moving BACKWARD (Extension)
+      const extension = Math.round(Math.min(90, Math.atan2(Math.abs(dxSag), dy) * (180 / Math.PI)));
+      return { flexion: 0, extension };
+    } else {
+      // Standing neutral within deadband
+      return { flexion: 0, extension: 0 };
+    }
+  }
+
+  public static getSagittalSpineAngles(pose: PoseData, state: any = {}): { flexion: number; extension: number } {
+    const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER] || pose['LEFT_SHOULDER'];
+    const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER] || pose['RIGHT_SHOULDER'];
+    const lHip = pose[POSE_LANDMARKS.LEFT_HIP] || pose['LEFT_HIP'];
+    const rHip = pose[POSE_LANDMARKS.RIGHT_HIP] || pose['RIGHT_HIP'];
+    const nose = pose[POSE_LANDMARKS.NOSE] || pose['NOSE'];
+    const lEar = pose[POSE_LANDMARKS.LEFT_EAR] || pose['LEFT_EAR'];
+    const rEar = pose[POSE_LANDMARKS.RIGHT_EAR] || pose['RIGHT_EAR'];
+    const lKnee = pose[POSE_LANDMARKS.LEFT_KNEE] || pose['LEFT_KNEE'];
+    const rKnee = pose[POSE_LANDMARKS.RIGHT_KNEE] || pose['RIGHT_KNEE'];
+    const lFoot = pose[POSE_LANDMARKS.LEFT_FOOT_INDEX] || pose['LEFT_FOOT_INDEX'];
+    const rFoot = pose[POSE_LANDMARKS.RIGHT_FOOT_INDEX] || pose['RIGHT_FOOT_INDEX'];
+    const lHeel = pose[POSE_LANDMARKS.LEFT_HEEL] || pose['LEFT_HEEL'];
+    const rHeel = pose[POSE_LANDMARKS.RIGHT_HEEL] || pose['RIGHT_HEEL'];
+
+    // Select or compute midpoint for shoulder and hip
+    const shoulderCount = (lShoulder ? 1 : 0) + (rShoulder ? 1 : 0);
+    const hipCount = (lHip ? 1 : 0) + (rHip ? 1 : 0);
+
+    if (shoulderCount === 0 || hipCount === 0) {
+      return { flexion: 0, extension: 0 };
+    }
+
+    const sx = ((lShoulder?.x || 0) + (rShoulder?.x || 0)) / shoulderCount;
+    const sy = ((lShoulder?.y || 0) + (rShoulder?.y || 0)) / shoulderCount;
+    const hx = ((lHip?.x || 0) + (rHip?.x || 0)) / hipCount;
+    const hy = ((lHip?.y || 0) + (rHip?.y || 0)) / hipCount;
+
+    // Determine facing direction (+1 = facing right towards +X, -1 = facing left towards -X)
+    let facingDir = 1;
+    if (state && state.baseFacingDir) {
+      facingDir = state.baseFacingDir;
+    } else {
+      // Ground Truth 1: Feet (Toe index vs Heel) — completely immune to head tilting backward
+      const foot = lFoot || rFoot;
+      const heel = lHeel || rHeel;
+      if (foot && heel && Math.abs(foot.x - heel.x) > 0.005) {
+        facingDir = foot.x > heel.x ? 1 : -1;
+      } else {
+        // Ground Truth 2: Knee vs Hip
+        const knee = lKnee || rKnee;
+        if (knee && Math.abs(knee.x - hx) > 0.008) {
+          facingDir = knee.x > hx ? 1 : -1;
+        } else {
+          // Ground Truth 3: Nose vs Ear
+          const ear = lEar || rEar;
+          if (nose && ear && Math.abs(nose.x - ear.x) > 0.008) {
+            facingDir = nose.x > ear.x ? 1 : -1;
+          } else if (nose && Math.abs(nose.x - hx) > 0.01) {
+            facingDir = nose.x > hx ? 1 : -1;
+          }
+        }
+      }
+
+      // Lock facing direction into state during setup phase / initial stance
+      if (state && !state.baseFacingDir) {
+        state.baseFacingDir = facingDir;
+      }
+    }
+
+    const dxSag = (sx - hx) * facingDir;
+    const dySag = Math.max(0.001, hy - sy); // Positive upwards
+
+    // Low deadband threshold (0.008) for instant sensitivity
+    if (dxSag > 0.008) {
+      // Forward Spine Flexion
+      const flexion = Math.round(Math.min(75, Math.atan2(dxSag, dySag) * (180 / Math.PI)));
+      return { flexion, extension: 0 };
+    } else if (dxSag < -0.008) {
+      // Backward Spine Extension
+      const extension = Math.round(Math.min(60, Math.atan2(Math.abs(dxSag), dySag) * (180 / Math.PI)));
+      return { flexion: 0, extension };
+    } else {
+      // Standing neutral within deadband
+      return { flexion: 0, extension: 0 };
     }
   }
 
@@ -1011,7 +1518,7 @@ export class DynamicRule implements IExerciseRule {
     }
   }
 
-  public validate(pose: PoseData, state: ExerciseState, timeMs?: number): {
+  public validate(pose: PoseData, state: ExerciseState, timeMs?: number, segmentationMask?: any): {
     newPhase: MovementPhase;
     feedback: string[];
     isRepCompleted: boolean;
@@ -1025,6 +1532,7 @@ export class DynamicRule implements IExerciseRule {
     progressPct?: number;
     pendingEntryCue?: string;
     pendingPhaseCompletion?: { phaseIndex: number; phaseName: string };
+    spineData?: SpineCurvatureResult;
   } {
     let newPhase = state.currentPhase;
     const feedback: string[] = [];
@@ -1050,27 +1558,6 @@ export class DynamicRule implements IExerciseRule {
       p.formChecks?.forEach((c: any) => usedMetrics.add(c.metric));
     });
 
-    // Update internal state needed for velocities/jitter
-    const lHip = pose[POSE_LANDMARKS.LEFT_HIP];
-    const rHip = pose[POSE_LANDMARKS.RIGHT_HIP];
-    
-    // Evaluate all metrics
-    for (const metricId of usedMetrics) {
-      // Convert metric ID (e.g., HEEL_RAISE_TILT) to camelCase (e.g., heelRaiseTilt) for the frontend charts
-      const chartKey = metricId.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase());
-      angles[chartKey] = DynamicRule.calculateMetric(metricId, pose, {
-        baseTorsoHeight: this.baseTorsoHeight,
-        initialHeelTilt: this.initialHeelTilt,
-        initialLeftHeelTilt: this.initialLeftHeelTilt,
-        initialRightHeelTilt: this.initialRightHeelTilt,
-        initialHipX: this.initialHipX,
-        previousPose: this.previousPose,
-        previousHipY: this.previousHipY,
-        lastTimeMs: this.lastTimeMs,
-        timeMs: timeMs
-      });
-    }
-
     const currentPhaseConfig = phases[this.currentPhaseIndex] || phases[0];
 
     // If we just reset (e.g. from previous rep completion)
@@ -1092,9 +1579,23 @@ export class DynamicRule implements IExerciseRule {
           this.setupWarningsThisRep.clear();
           this.consecutiveFailures.clear();
           
-          const shoulderY = ((lShoulder?.y || rShoulder?.y) + (rShoulder?.y || lShoulder?.y)) / 2;
-          const hipY = ((lHip?.y || rHip?.y) + (rHip?.y || lHip?.y)) / 2;
-          const hipX = ((lHip?.x || rHip?.x) + (rHip?.x || lHip?.x)) / 2;
+          const lSVis = lShoulder?.visibility ?? 0;
+          const rSVis = rShoulder?.visibility ?? 0;
+          const lHVis = lHip?.visibility ?? 0;
+          const rHVis = rHip?.visibility ?? 0;
+
+          const isFrontal = lShoulder && rShoulder && Math.abs(lSVis - rSVis) < 0.25;
+          const shoulderY = isFrontal
+            ? (lShoulder!.y + rShoulder!.y) / 2
+            : ((rShoulder && rSVis > lSVis ? rShoulder.y : lShoulder?.y ?? rShoulder!.y));
+          
+          const hipY = isFrontal && lHip && rHip
+            ? (lHip.y + rHip.y) / 2
+            : ((rHip && rHVis > lHVis ? rHip.y : lHip?.y ?? rHip!.y));
+
+          const hipX = isFrontal && lHip && rHip
+            ? (lHip.x + rHip.x) / 2
+            : ((rHip && rHVis > lHVis ? rHip.x : lHip?.x ?? rHip!.x));
           
           this.baseTorsoHeight = Math.abs(hipY - shoulderY);
           this.initialHipX = hipX;
@@ -1142,6 +1643,29 @@ export class DynamicRule implements IExerciseRule {
       else if (firstPhaseName.includes('BOTTOM') || firstPhaseName.includes('HOLD') || firstPhaseName.includes('PAUSE')) newPhase = MovementPhase.BOTTOM_POSITION;
       else if (firstPhaseName.includes('ASCEND') || firstPhaseName.includes('RETURN MOVEMENT')) newPhase = MovementPhase.ASCENDING;
       else newPhase = MovementPhase.DESCENDING; // Smart fallback for Phase 0
+    }
+
+    // Check if Phase 0 entry cue should be emitted on rep/session start
+    if (this.currentPhaseIndex === 0 && !this.phase0CueEmitted && phases[0]?.entryCueEnabled && phases[0]?.entryCue) {
+      pendingEntryCue = phases[0].entryCue;
+      this.phase0CueEmitted = true;
+    }
+
+    // Evaluate all metrics
+    for (const metricId of usedMetrics) {
+      // Convert metric ID (e.g., HEEL_RAISE_TILT) to camelCase (e.g., heelRaiseTilt) for the frontend charts
+      const chartKey = metricId.toLowerCase().replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+      angles[chartKey] = DynamicRule.calculateMetric(metricId, pose, {
+        baseTorsoHeight: this.baseTorsoHeight,
+        initialHeelTilt: this.initialHeelTilt,
+        initialLeftHeelTilt: this.initialLeftHeelTilt,
+        initialRightHeelTilt: this.initialRightHeelTilt,
+        initialHipX: this.initialHipX,
+        previousPose: this.previousPose,
+        previousHipY: this.previousHipY,
+        lastTimeMs: this.lastTimeMs,
+        timeMs: timeMs
+      });
     }
 
     // 1. Evaluate Live Form Checks for the current phase
@@ -1228,6 +1752,7 @@ export class DynamicRule implements IExerciseRule {
             newPhase = MovementPhase.START_POSITION;
             this.isRepCalibrated = false; // Reset calibration for next rep
             this.consecutiveFailures.clear(); // Reset failure counters for next rep
+            this.phase0CueEmitted = false; // Reset setup cue for next rep
             
             if (!isRepCompleted) {
               newAttempt = {
@@ -1306,6 +1831,12 @@ export class DynamicRule implements IExerciseRule {
       }
     }
 
+    const spineData = calculateSpineCurvature(pose, {
+      baseTorsoHeight: this.baseTorsoHeight,
+      baseFacingDir: (state as any)?.baseFacingDir,
+      segmentationMask
+    });
+
     return {
       newPhase,
       feedback,
@@ -1319,7 +1850,8 @@ export class DynamicRule implements IExerciseRule {
       totalPhases,
       progressPct,
       pendingEntryCue,
-      pendingPhaseCompletion
+      pendingPhaseCompletion,
+      spineData
     };
   }
 }

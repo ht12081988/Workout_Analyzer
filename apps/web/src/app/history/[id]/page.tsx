@@ -62,8 +62,10 @@ export default function SessionDetailPage() {
   const [angles, setAngles] = useState<any[]>([]);
   const [activeReplayId, setActiveReplayId] = useState<string | null>(null);
   const [globalShowAngles, setGlobalShowAngles] = useState(true);
-  const [viewMode, setViewMode] = useState<'2d' | '3d'>('3d');
   const [showPhaseLines, setShowPhaseLines] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
 
   const [sessionReplay, setSessionReplay] = useState<{
     isOpen: boolean;
@@ -94,6 +96,22 @@ export default function SessionDetailPage() {
       activeAttempts: replayAttempts,
       isComplete: false
     });
+  };
+
+  const handleDeleteSession = async () => {
+    if (!session) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/sessions/${session.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete session');
+      router.push('/history');
+    } catch (err) {
+      console.error('Error deleting session:', err);
+      alert('Failed to delete session. Please try again.');
+      setIsDeleting(false);
+    }
   };
 
   const playNextSessionRep = () => {
@@ -682,8 +700,18 @@ export default function SessionDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-4 ml-auto">
+        <div className="flex items-center justify-end gap-3 ml-auto">
           <ThemeToggle />
+          {session && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="flex items-center gap-1.5 rounded-full bg-surface-elev px-3 py-1.5 text-xs font-semibold text-fg-mute hover:text-red-500 hover:bg-red-500/10 transition-colors border border-border"
+              title="Delete this session"
+            >
+              <span className="material-symbols-outlined text-sm">delete</span>
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+          )}
         </div>
       </nav>
 
@@ -1346,6 +1374,63 @@ export default function SessionDetailPage() {
           )}
         </motion.div>
       </motion.section>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && session && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => !isDeleting && setShowDeleteModal(false)}
+        >
+          <div 
+            className="w-full max-w-md rounded-3xl bg-surface-card border border-border p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-500 mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20">
+                <span className="material-symbols-outlined text-2xl">delete_forever</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-fg">Delete Session?</h3>
+                <p className="text-xs text-fg-mute">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-fg-mute leading-relaxed mb-6">
+              Are you sure you want to delete this workout session for <strong className="text-fg">{session.exercise_name}</strong>? All recorded reps, 3D/2D replay frames, analytics, and attempt history will be permanently deleted.
+            </p>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setShowDeleteModal(false)}
+                className="px-5 py-2.5 rounded-full text-sm font-semibold text-fg-mute hover:bg-surface-elev hover:text-fg transition-colors border border-border disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteSession}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all shadow-lg shadow-red-500/20 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-sm">delete</span>
+                    <span>Delete Session</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

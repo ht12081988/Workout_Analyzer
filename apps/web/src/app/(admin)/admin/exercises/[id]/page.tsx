@@ -29,6 +29,8 @@ export default function EditExerciseRulesPage() {
 
   // To allow navigating phases without a timeline
   const [activePhaseName, setActivePhaseName] = useState<string | null>(null);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   // Video Assistant Sub-tab & Persistent Selected Metrics
   const [configTab, setConfigTab] = useState<ConfigTab>('transitions');
@@ -125,6 +127,43 @@ export default function EditExerciseRulesPage() {
           resolve();
         }
       });
+    });
+  };
+
+  const handleReorderPhases = (fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return;
+    const currentPhaseNames = Object.keys(phasesConfig);
+    const fromName = currentPhaseNames[fromIdx];
+    const toName = currentPhaseNames[toIdx];
+    if (!fromName || !toName) return;
+
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirm Phase Reordering',
+      message: `Are you sure you want to move "${fromName}" to position ${toIdx + 1}? This will update the movement tracking sequence for this exercise.`,
+      confirmText: 'Reorder Phase',
+      confirmStyle: 'flame',
+      hideCancel: false,
+      onConfirm: () => {
+        const entries = Object.entries(phasesConfig);
+        const [moved] = entries.splice(fromIdx, 1);
+        entries.splice(toIdx, 0, moved);
+        setPhasesConfig(Object.fromEntries(entries));
+
+        setMarkers(prev => {
+          if (prev.length === 0) return prev;
+          const updated = [...prev];
+          const movedId = moved[0];
+          const mIdx = updated.findIndex(m => m.id === movedId);
+          if (mIdx !== -1) {
+            const [m] = updated.splice(mIdx, 1);
+            const targetIdx = Math.min(toIdx, updated.length);
+            updated.splice(targetIdx, 0, m);
+          }
+          return updated;
+        });
+        setConfirmModal(null);
+      }
     });
   };
 
@@ -231,21 +270,23 @@ export default function EditExerciseRulesPage() {
       }
     }
 
-    // Find previous marker in chronological timeline
-    const sortedMarkers = [...markers].sort((a, b) => a.timeMs - b.timeMs);
-    const currentIdx = sortedMarkers.findIndex(m => m.id === activePhaseName);
+    // Find previous marker in configured phase sequence
+    const currentIdx = phaseNames.indexOf(activePhaseName || '');
     let prevPose: PoseData | null = null;
     let prevLabel = '';
 
     if (currentIdx > 0) {
-      const prevMarker = sortedMarkers[currentIdx - 1];
-      prevLabel = prevMarker.label;
-      let prevMinDiff = Infinity;
-      for (const f of telemetry) {
-        const diff = Math.abs(f.timeMs - prevMarker.timeMs);
-        if (diff < prevMinDiff) {
-          prevMinDiff = diff;
-          prevPose = f.pose;
+      const prevPhaseName = phaseNames[currentIdx - 1];
+      const prevMarker = markers.find(m => m.id === prevPhaseName);
+      prevLabel = prevMarker?.label || prevPhaseName;
+      if (prevMarker) {
+        let prevMinDiff = Infinity;
+        for (const f of telemetry) {
+          const diff = Math.abs(f.timeMs - prevMarker.timeMs);
+          if (diff < prevMinDiff) {
+            prevMinDiff = diff;
+            prevPose = f.pose;
+          }
         }
       }
     } else if (telemetry.length > 0) {
@@ -589,56 +630,98 @@ export default function EditExerciseRulesPage() {
 
             {/* Horizontal Tabs Container */}
             <div className="flex items-center bg-surface-elev border border-border p-1.5 rounded-2xl flex-1 min-w-0">
-              <div className="flex items-center overflow-x-auto flex-nowrap whitespace-nowrap min-w-0 flex-1 thin-scrollbar">
-                {phaseNames.map(name => (
-                  <div key={name} className="relative group flex shrink-0">
-                    <button
-                      onClick={() => setActivePhaseName(name)}
-                      className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all pr-[72px] flex items-center ${
-                        activePhaseName === name 
-                          ? 'bg-flame text-on-dark shadow-flame' 
-                          : 'text-fg-mute hover:text-fg hover:bg-surface-raised'
+              <div className="flex items-center overflow-x-auto flex-nowrap whitespace-nowrap min-w-0 flex-1 thin-scrollbar gap-1.5">
+                {phaseNames.map((name, idx) => {
+                  const isDragging = draggedIdx === idx;
+                  const isDragOver = dragOverIdx === idx && draggedIdx !== idx;
+
+                  return (
+                    <div 
+                      key={name} 
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', idx.toString());
+                        e.dataTransfer.effectAllowed = 'move';
+                        setDraggedIdx(idx);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (dragOverIdx !== idx) setDragOverIdx(idx);
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverIdx === idx) setDragOverIdx(null);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (draggedIdx !== null && draggedIdx !== idx) {
+                          handleReorderPhases(draggedIdx, idx);
+                        }
+                        setDraggedIdx(null);
+                        setDragOverIdx(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedIdx(null);
+                        setDragOverIdx(null);
+                      }}
+                      className={`relative group flex shrink-0 cursor-grab active:cursor-grabbing rounded-xl transition-all select-none ${
+                        isDragging ? 'opacity-30 scale-95 border-2 border-dashed border-flame' : ''
+                      } ${
+                        isDragOver ? 'ring-2 ring-flame ring-offset-2 ring-offset-surface-elev scale-[1.03]' : ''
                       }`}
+                      title="Drag and drop to reorder phase"
                     >
-                      <span>{name}</span>
-                    </button>
-
-                    {/* Actions Container */}
-                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                       <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDuplicatePhase(name);
-                        }}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
-                          activePhaseName === name
-                            ? 'hover:bg-white/20 text-on-dark'
-                            : 'hover:bg-surface-elev text-fg-mute hover:text-flame'
+                        onClick={() => setActivePhaseName(name)}
+                        className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all pr-[72px] flex items-center gap-1.5 ${
+                          activePhaseName === name 
+                            ? 'bg-flame text-on-dark shadow-flame' 
+                            : 'text-fg-mute hover:text-fg hover:bg-surface-raised'
                         }`}
-                        title="Duplicate Phase"
                       >
-                        <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                        <span className={`material-symbols-outlined text-[15px] opacity-40 group-hover:opacity-100 transition-opacity ${activePhaseName === name ? 'text-on-dark' : 'text-fg-mute'}`}>
+                          drag_indicator
+                        </span>
+                        <span>{name}</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveMarker(name);
-                        }}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
-                          activePhaseName === name
-                            ? 'hover:bg-white/20 text-on-dark'
-                            : 'hover:bg-surface-elev text-fg-mute hover:text-err'
-                        }`}
-                        title="Delete Phase"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">close</span>
-                      </button>
+                      {/* Actions Container */}
+                      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDuplicatePhase(name);
+                          }}
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
+                            activePhaseName === name
+                              ? 'hover:bg-white/20 text-on-dark'
+                              : 'hover:bg-surface-elev text-fg-mute hover:text-flame'
+                          }`}
+                          title="Duplicate Phase"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveMarker(name);
+                          }}
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
+                            activePhaseName === name
+                              ? 'hover:bg-white/20 text-on-dark'
+                              : 'hover:bg-surface-elev text-fg-mute hover:text-err'
+                          }`}
+                          title="Delete Phase"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">close</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <button

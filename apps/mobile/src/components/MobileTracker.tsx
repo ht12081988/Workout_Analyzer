@@ -15,7 +15,7 @@ import { useRunOnJS } from 'react-native-worklets-core';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
-import { MovementEngine, PoseData, Landmark, ExerciseState } from '@workout/shared';
+import { MovementEngine, PoseData, Landmark, ExerciseState, SpineCurvatureResult } from '@workout/shared';
 import { Spacing, Radii } from '../theme';
 import { useTheme } from '../ThemeContext';
 import { API_BASE_URL } from '../config';
@@ -134,6 +134,7 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
   // Layout dimensions for rendering skeleton
   const [layoutSize, setLayoutSize] = useState({ width: 300, height: 500 });
   const [lastPose, setLastPose] = useState<PoseData | null>(null);
+  const [spineData, setSpineData] = useState<SpineCurvatureResult | null>(null);
   const [seconds, setSeconds] = useState(0);
 
   // References to prevent double logs
@@ -398,6 +399,7 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
     setFeedback(newState.feedback);
     setAttemptLog(newState.attemptLog);
     setEnginePhase(newState.currentPhase);
+    setSpineData(newState.spineData || null);
 
     // 1. Detect New Attempts
     const latestAttempt = newState.attemptLog[0];
@@ -609,6 +611,36 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
             }
             return null;
           })}
+
+          {/* Draw Cervical Neck Silhouette Contour */}
+          {spineData && spineData.cervicalContourPoints && spineData.cervicalContourPoints.length > 1 && (
+            spineData.cervicalContourPoints.slice(0, -1).map((pt: any, idx: number) => {
+              const nextPt = spineData.cervicalContourPoints![idx + 1];
+              return (
+                <Line
+                  key={`cervical-seg-${idx}`}
+                  p1={getScreenPoint(pt)}
+                  p2={getScreenPoint(nextPt)}
+                  color="#ec4899"
+                />
+              );
+            })
+          )}
+
+          {/* Draw Thoracic & Lumbar Silhouette Mask Contour */}
+          {spineData && spineData.contourPoints && spineData.contourPoints.length > 1 && (
+            spineData.contourPoints.slice(0, -1).map((pt: any, idx: number) => {
+              const nextPt = spineData.contourPoints![idx + 1];
+              return (
+                <Line
+                  key={`thoracic-contour-seg-${idx}`}
+                  p1={getScreenPoint(pt)}
+                  p2={getScreenPoint(nextPt)}
+                  color="#00f2fe"
+                />
+              );
+            })
+          )}
         </View>
       )}
 

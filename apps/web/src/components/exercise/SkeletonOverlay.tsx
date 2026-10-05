@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { PoseData, DynamicRule } from '@workout/shared';
+import { PoseData, DynamicRule, SpineCurvatureResult } from '@workout/shared';
 
 interface SkeletonOverlayProps {
   pose: PoseData | null;
+  spineData?: SpineCurvatureResult | null;
   width: number;
   height: number;
   videoSize: {
@@ -13,6 +14,7 @@ interface SkeletonOverlayProps {
   } | null;
   smoothing?: number;
   showAngles?: boolean;
+  showSilhouette?: boolean;
 }
 
 const POSE_CONNECTIONS = [
@@ -81,11 +83,13 @@ function calculateAngle(a: { x: number; y: number }, b: { x: number; y: number }
 
 export const SkeletonOverlay: React.FC<SkeletonOverlayProps> = ({
   pose,
+  spineData,
   width,
   height,
   videoSize,
   smoothing = 0.3,
   showAngles = true,
+  showSilhouette = true,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const smoothedPoseRef = useRef<PoseData | null>(null);
@@ -468,7 +472,135 @@ export const SkeletonOverlay: React.FC<SkeletonOverlayProps> = ({
       }
     }
 
-  }, [pose, width, height, videoSize, smoothing, showAngles]);
+    // 1. Draw Cervical / Head-to-Shoulder AI Silhouette Boundary (Neon Violet / Magenta)
+    if (showSilhouette && spineData && spineData.cervicalContourPoints && spineData.cervicalContourPoints.length > 1) {
+      ctx.save();
+      const neckPts = spineData.cervicalContourPoints.map(p => getCanvasPoint({ x: p.x, y: p.y, z: 0 }));
+
+      // Draw glowing curved boundary silhouette line for Neck & Head
+      ctx.beginPath();
+      ctx.moveTo(neckPts[0].x, neckPts[0].y);
+      if (neckPts.length === 2) {
+        ctx.lineTo(neckPts[1].x, neckPts[1].y);
+      } else {
+        for (let i = 0; i < neckPts.length - 1; i++) {
+          const xc = (neckPts[i].x + neckPts[i + 1].x) / 2;
+          const yc = (neckPts[i].y + neckPts[i + 1].y) / 2;
+          ctx.quadraticCurveTo(neckPts[i].x, neckPts[i].y, xc, yc);
+        }
+        ctx.lineTo(neckPts[neckPts.length - 1].x, neckPts[neckPts.length - 1].y);
+      }
+      ctx.strokeStyle = 'rgba(236, 72, 153, 0.85)'; // Neon Magenta / Rose Halo
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([4, 3]);
+      ctx.shadowColor = '#ec4899';
+      ctx.shadowBlur = 9;
+      ctx.stroke();
+
+      // Draw boundary sensor dots along the neck/head edge
+      ctx.setLineDash([]);
+      neckPts.forEach((pt) => {
+        ctx.fillStyle = '#ec4899';
+        ctx.shadowColor = '#ec4899';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 2.8, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      // Cervical Spine / Neck Badge
+      if (neckPts.length > 0) {
+        const topPt = neckPts[0];
+        const badgeX = topPt.x - 55;
+        const badgeY = topPt.y - 12;
+        const text = 'CERVICAL';
+        ctx.font = 'bold 9px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const textW = ctx.measureText(text).width;
+        const bW = textW + 10;
+        const bH = 16;
+
+        ctx.fillStyle = 'rgba(20, 0, 30, 0.85)';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(badgeX - bW / 2, badgeY - bH / 2, bW, bH, 4);
+        else ctx.rect(badgeX - bW / 2, badgeY - bH / 2, bW, bH);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(236, 72, 153, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = '#ec4899';
+        ctx.fillText(text, badgeX, badgeY + 0.5);
+      }
+
+      ctx.restore();
+    }
+
+    // 2. Draw Thoracic & Lumbar AI Silhouette Mask Boundary (Neon Cyan)
+    if (showSilhouette && spineData && spineData.contourPoints && spineData.contourPoints.length > 2) {
+      ctx.save();
+      const cPts = spineData.contourPoints.map(p => getCanvasPoint({ x: p.x, y: p.y, z: 0 }));
+
+      // Draw glowing smooth curved boundary silhouette line
+      ctx.beginPath();
+      ctx.moveTo(cPts[0].x, cPts[0].y);
+      for (let i = 0; i < cPts.length - 1; i++) {
+        const xc = (cPts[i].x + cPts[i + 1].x) / 2;
+        const yc = (cPts[i].y + cPts[i + 1].y) / 2;
+        ctx.quadraticCurveTo(cPts[i].x, cPts[i].y, xc, yc);
+      }
+      ctx.lineTo(cPts[cPts.length - 1].x, cPts[cPts.length - 1].y);
+      ctx.strokeStyle = 'rgba(0, 242, 254, 0.75)'; // Cyan halo
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([4, 3]);
+      ctx.shadowColor = '#00f2fe';
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+
+      // Draw boundary sensor dots along the silhouette edge
+      ctx.setLineDash([]);
+      cPts.forEach((pt) => {
+        ctx.fillStyle = '#00f2fe';
+        ctx.shadowColor = '#00f2fe';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 2.8, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      // Silhouette Mask Badge near top boundary point
+      if (cPts.length > 0) {
+        const topPt = cPts[0];
+        const badgeX = topPt.x - 65;
+        const badgeY = topPt.y - 14;
+        const text = 'THORACIC / LUMBAR';
+        ctx.font = 'bold 9px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const textW = ctx.measureText(text).width;
+        const bW = textW + 10;
+        const bH = 16;
+
+        ctx.fillStyle = 'rgba(0, 20, 43, 0.85)';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(badgeX - bW / 2, badgeY - bH / 2, bW, bH, 4);
+        else ctx.rect(badgeX - bW / 2, badgeY - bH / 2, bW, bH);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = '#00f2fe';
+        ctx.fillText(text, badgeX, badgeY + 0.5);
+      }
+
+      ctx.restore();
+    }
+
+  }, [pose, spineData, width, height, videoSize, smoothing, showAngles, showSilhouette]);
 
   return (
     <canvas

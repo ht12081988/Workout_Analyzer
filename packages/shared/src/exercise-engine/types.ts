@@ -103,6 +103,28 @@ export interface ExerciseState {
   pendingEntryCue?: string;
   /** Emitted once when an intermediate phase's exit conditions are met. Cleared after logging. */
   pendingPhaseCompletion?: { phaseIndex: number; phaseName: string };
+  /** Real-time spine curvature and contour spline coordinates */
+  spineData?: SpineCurvatureResult;
+}
+
+export interface SegmentalSpineAngles {
+  cervicalUpperAngle: number;    // C1–C3: Suboccipital / Cranio-Cervical
+  cervicothoracicAngle: number;  // C4–C7: Lower Neck / C7 Hinge
+  thoracicUpperAngle: number;    // T1–T4: Upper Thoracic Kyphosis Start
+  thoracicMidAngle: number;      // T5–T8: Mid-Thoracic Kyphosis Apex
+  thoracolumbarAngle: number;    // T9–T12: Thoracolumbar Pivot / Rib Base
+  lumbarUpperAngle: number;      // L1–L3: Upper Lumbar Lordosis
+  lumbosacralAngle: number;      // L4–S1: Lumbosacral Hinge / Pelvic Base
+}
+
+export interface SpineCurvatureResult {
+  curvatureDegrees: number;
+  isFlexion: boolean;
+  compressionRatio?: number;
+  splinePoints?: Array<{ x: number; y: number }>;
+  contourPoints?: Array<{ x: number; y: number }>;
+  cervicalContourPoints?: Array<{ x: number; y: number }>;
+  segmentalAngles?: SegmentalSpineAngles;
 }
 
 export const POSE_LANDMARKS = {
@@ -125,5 +147,6 @@ export const POSE_LANDMARKS = {
   LEFT_ELBOW: 'LEFT_ELBOW',
   RIGHT_ELBOW: 'RIGHT_ELBOW',
   LEFT_WRIST: 'LEFT_WRIST',
-  RIGHT_WRIST: 'RIGHT_WRIST'
+  RIGHT_WRIST: 'RIGHT_WRIST',
+  NOSE: 'NOSE'
 };

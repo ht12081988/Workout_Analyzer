@@ -293,9 +293,8 @@ export const PhaseConfigurator: React.FC<PhaseConfiguratorProps> = ({
         ) : (
           <div className="flex-1 flex flex-col pr-2 mt-4">
             <div className="flex-1 overflow-auto space-y-6">
-              <div className="flex flex-col gap-6">
-                <div className="flex items-center gap-4 bg-surface-elev p-3 rounded-lg border border-border">
-                  {onUpdateSetupPhase && (
+                {onUpdateSetupPhase && (
+                  <div className="flex items-center gap-4 bg-surface-elev p-3 rounded-lg border border-border">
                     <label className="flex items-center gap-2 text-xs font-bold text-fg cursor-pointer bg-bg px-3 py-1.5 rounded-full border border-border hover:border-flame transition">
                       <input 
                         type="checkbox" 
@@ -305,26 +304,8 @@ export const PhaseConfigurator: React.FC<PhaseConfiguratorProps> = ({
                       />
                       Setup Phase (No Failures)
                     </label>
-                  )}
-                  <div className="flex items-center gap-2 bg-bg px-3 py-1.5 rounded-full border border-border">
-                    <span className="text-fg-mute text-xs font-bold">Phase Type:</span>
-                    <select
-                      className="bg-transparent text-flame text-xs font-bold outline-none cursor-pointer max-w-[250px] truncate"
-                      value={phaseName || ''}
-                      onChange={(e) => onUpdatePhaseName && onUpdatePhaseName(e.target.value)}
-                      disabled={!phaseName}
-                    >
-                      {!['Setup', 'First Movement', 'Hold / Pause', 'Top', 'Return Movement'].includes(phaseName) && (
-                        <option value={phaseName}>{phaseName || 'None Selected'}</option>
-                      )}
-                      <option value="Setup">Setup (Preparing for the rep)</option>
-                      <option value="First Movement">First Movement (e.g., Descending, Twisting Left)</option>
-                      <option value="Hold / Pause">Hold / Pause (e.g., Pausing at bottom)</option>
-                      <option value="Top">Top (e.g., Pausing at the top)</option>
-                      <option value="Return Movement">Return Movement (e.g., Ascending, Twisting Right)</option>
-                    </select>
                   </div>
-                </div>
+                )}
 
                 <div className="bg-surface-elev rounded-lg p-5 border border-border">
                   <div className="flex justify-between items-center mb-4">
@@ -348,7 +329,6 @@ export const PhaseConfigurator: React.FC<PhaseConfiguratorProps> = ({
                 </div>
               </div>
             </div>
-          </div>
         )
       )}
 

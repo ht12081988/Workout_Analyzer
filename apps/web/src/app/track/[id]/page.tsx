@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { WebcamTracker } from '../../../components/exercise/WebcamTracker';
 import { SkeletonOverlay } from '../../../components/exercise/SkeletonOverlay';
 import { MovementEngine, ExerciseState, PoseData, RepStats, SpeechManager } from '@workout/shared';
-import { ChevronLeft, Play, Square, AlertTriangle, Volume2, VolumeX, Maximize, Minimize, Activity, Zap } from 'lucide-react';
+import { ChevronLeft, Play, Square, AlertTriangle, Volume2, VolumeX, Maximize, Minimize, Activity, Zap, Layers } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useRef, useEffect } from 'react';
 
@@ -31,6 +31,7 @@ export default function TrackPage() {
   const [speech] = useState(() => new SpeechManager());
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [showAngles, setShowAngles] = useState(true);
+  const [showSilhouette, setShowSilhouette] = useState(true);
 
   useEffect(() => {
     setIsVoiceEnabled(speech.getIsEnabled());
@@ -357,9 +358,9 @@ export default function TrackPage() {
   const lastFinishedMovementIdRef = useRef<string | null>(null);
   const lastLoggedRepCount = useRef(0);
 
-  const handlePose = useCallback((newPose: PoseData) => {
+  const handlePose = useCallback((newPose: PoseData, mask?: any) => {
     setPose(newPose);
-    const newState = engine.processFrame(newPose);
+    const newState = engine.processFrame(newPose, undefined, mask);
 
     // 1. Process Finished Movements
     const currentStats = engine.getLastMovementStats();
@@ -554,6 +555,18 @@ export default function TrackPage() {
           </button>
 
           <button
+            onClick={() => setShowSilhouette(!showSilhouette)}
+            className={`p-3.5 rounded-2xl border transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center flex-none hidden lg:flex ${
+              showSilhouette
+                ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] hover:bg-cyan-500/20'
+                : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'
+            }`}
+            title={showSilhouette ? 'Hide AI Silhouette Boundary' : 'Show AI Silhouette Boundary'}
+          >
+            <Layers className="w-5 h-5" />
+          </button>
+
+          <button
             onClick={toggleVoice}
             className={`p-3.5 rounded-2xl border transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center flex-none hidden lg:flex ${
               isVoiceEnabled
@@ -634,11 +647,13 @@ export default function TrackPage() {
               >
                 <SkeletonOverlay
                   pose={pose}
+                  spineData={state.spineData}
                   videoSize={videoSize}
                   width={isFullscreen ? windowSize.width : 800}
                   height={isFullscreen ? windowSize.height : 600}
                   smoothing={uiSmoothing}
                   showAngles={showAngles}
+                  showSilhouette={showSilhouette}
                 />
 
                 {/* Overlay Indicators */}
