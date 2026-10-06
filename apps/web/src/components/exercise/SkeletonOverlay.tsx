@@ -89,7 +89,7 @@ export const SkeletonOverlay: React.FC<SkeletonOverlayProps> = ({
   videoSize,
   smoothing = 0.3,
   showAngles = true,
-  showSilhouette = true,
+  showSilhouette = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const smoothedPoseRef = useRef<PoseData | null>(null);

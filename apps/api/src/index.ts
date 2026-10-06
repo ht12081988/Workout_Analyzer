@@ -644,6 +644,179 @@ app.put('/admin/exercises/:id/status', async (req, res) => {
   }
 });
 
+// Single Exercise Export Endpoint
+app.get('/admin/exercises/:id/export', async (req, res) => {
+  try {
+    const exResult = await query('SELECT * FROM exercises WHERE id = $1', [req.params.id]);
+    if (exResult.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Exercise not found' });
+    }
+    const exercise = exResult.rows[0];
+
+    // Fetch rules
+    const rulesResult = await query(
+      'SELECT rule_name, rule_type, threshold_value, creator_type FROM exercise_pose_rules WHERE exercise_id = $1',
+      [req.params.id]
+    );
+
+    let dynamicProfile: any = null;
+    let trajectoryProfile: any = null;
+    let trackingMode = 'phases';
+
+    for (const r of rulesResult.rows) {
+      if (r.rule_name === 'DYNAMIC_PROFILE' && r.creator_type === 'system') {
+        dynamicProfile = typeof r.threshold_value === 'string' ? JSON.parse(r.threshold_value) : r.threshold_value;
+      } else if (r.rule_name === 'TRAJECTORY_PROFILE' && r.creator_type === 'system') {
+        trajectoryProfile = typeof r.threshold_value === 'string' ? JSON.parse(r.threshold_value) : r.threshold_value;
+        trackingMode = 'trajectory';
+      }
+    }
+
+    // Fetch voice cues
+    const cuesResult = await query(
+      'SELECT raw_cue, spoken_cue, display_cue, cue_type, is_active FROM voice_cues WHERE exercise_id = $1',
+      [req.params.id]
+    );
+
+    const exportPayload = {
+      format: 'visionfit_exercise',
+      version: '1.0',
+      exported_at: new Date().toISOString(),
+      name: exercise.name,
+      description: exercise.description || '',
+      category: exercise.category || 'AI Generated',
+      subcategory: exercise.subcategory || null,
+      camera_angle: exercise.camera_angle || 'FRONT',
+      image_path: exercise.image_path || null,
+      video_path: exercise.video_path || null,
+      trackingMode,
+      dynamicProfile,
+      trajectoryProfile,
+      voice_cues: cuesResult.rows
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${(exercise.name || 'exercise').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json"`);
+    res.json(exportPayload);
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
+// Single Exercise Import Endpoint
+app.post('/admin/exercises/import', async (req, res) => {
+  try {
+    const data = req.body.exercise || req.body;
+    const { overwrite } = req.body;
+
+    let {
+      name,
+      description,
+      category,
+      subcategory,
+      camera_angle,
+      image_path,
+      video_path,
+      trackingMode,
+      dynamicProfile,
+      trajectoryProfile,
+      voice_cues
+    } = data;
+
+    if (!name) {
+      return res.status(400).json({ status: 'error', message: 'Exercise name is required in imported JSON' });
+    }
+
+    if (!dynamicProfile && !trajectoryProfile) {
+      return res.status(400).json({ status: 'error', message: 'Imported JSON must contain a dynamicProfile or trajectoryProfile' });
+    }
+
+    // Check if exercise with this name already exists
+    const existing = await query('SELECT id FROM exercises WHERE name = $1 AND (is_deleted = false OR is_deleted IS NULL)', [name]);
+    
+    let exerciseId: string;
+
+    if (existing.rows.length > 0) {
+      if (overwrite) {
+        exerciseId = existing.rows[0].id;
+        // Update exercise metadata
+        await query(
+          'UPDATE exercises SET description = $1, category = $2, subcategory = $3, camera_angle = $4, image_path = $5, video_path = $6, status = true WHERE id = $7',
+          [description || '', category || 'AI Generated', subcategory || null, camera_angle || 'FRONT', image_path || null, video_path || null, exerciseId]
+        );
+      } else {
+        // Create as copy with timestamp/suffix
+        name = `${name} (Imported ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
+        const insertRes = await query(
+          'INSERT INTO exercises (name, description, category, subcategory, camera_angle, image_path, video_path, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+          [name, description || '', category || 'AI Generated', subcategory || null, camera_angle || 'FRONT', image_path || null, video_path || null, true]
+        );
+        exerciseId = insertRes.rows[0].id;
+      }
+    } else {
+      const insertRes = await query(
+        'INSERT INTO exercises (name, description, category, subcategory, camera_angle, image_path, video_path, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+        [name, description || '', category || 'AI Generated', subcategory || null, camera_angle || 'FRONT', image_path || null, video_path || null, true]
+      );
+      exerciseId = insertRes.rows[0].id;
+    }
+
+    // Save rules
+    if (trajectoryProfile) {
+      const existTraj = await query('SELECT id FROM exercise_pose_rules WHERE exercise_id = $1 AND rule_name = $2 AND creator_type = $3', [exerciseId, 'TRAJECTORY_PROFILE', 'system']);
+      if (existTraj.rows.length > 0) {
+        await query(
+          'UPDATE exercise_pose_rules SET threshold_value = $1, exercise_name = $2 WHERE id = $3',
+          [JSON.stringify(trajectoryProfile), name, existTraj.rows[0].id]
+        );
+      } else {
+        await query(
+          'INSERT INTO exercise_pose_rules (exercise_id, rule_name, rule_type, threshold_value, exercise_name, creator_type) VALUES ($1, $2, $3, $4, $5, $6)',
+          [exerciseId, 'TRAJECTORY_PROFILE', 'trajectory', JSON.stringify(trajectoryProfile), name, 'system']
+        );
+      }
+    }
+
+    if (dynamicProfile) {
+      const existDyn = await query('SELECT id FROM exercise_pose_rules WHERE exercise_id = $1 AND rule_name = $2 AND creator_type = $3', [exerciseId, 'DYNAMIC_PROFILE', 'system']);
+      if (existDyn.rows.length > 0) {
+        await query(
+          'UPDATE exercise_pose_rules SET threshold_value = $1, exercise_name = $2 WHERE id = $3',
+          [JSON.stringify(dynamicProfile), name, existDyn.rows[0].id]
+        );
+      } else {
+        await query(
+          'INSERT INTO exercise_pose_rules (exercise_id, rule_name, rule_type, threshold_value, exercise_name, creator_type) VALUES ($1, $2, $3, $4, $5, $6)',
+          [exerciseId, 'DYNAMIC_PROFILE', 'custom', JSON.stringify(dynamicProfile), name, 'system']
+        );
+      }
+    }
+
+    // Save voice cues if provided
+    if (Array.isArray(voice_cues) && voice_cues.length > 0) {
+      for (const cue of voice_cues) {
+        if (!cue.raw_cue) continue;
+        await query(
+          `INSERT INTO voice_cues (exercise_id, exercise_name, raw_cue, spoken_cue, display_cue, cue_type, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (exercise_id, raw_cue) 
+           DO UPDATE SET spoken_cue = EXCLUDED.spoken_cue, display_cue = EXCLUDED.display_cue, cue_type = EXCLUDED.cue_type, is_active = EXCLUDED.is_active`,
+          [exerciseId, name, cue.raw_cue, cue.spoken_cue || null, cue.display_cue || cue.raw_cue, cue.cue_type || 'info', cue.is_active !== undefined ? cue.is_active : true]
+        );
+      }
+    }
+
+    res.json({
+      status: 'success',
+      message: 'Exercise imported successfully',
+      exercise_id: exerciseId,
+      name
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: (error as Error).message });
+  }
+});
+
 // --- Trainer API Routes ---
 
 app.post('/trainer/login', async (req, res) => {

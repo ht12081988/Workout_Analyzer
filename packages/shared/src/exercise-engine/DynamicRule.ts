@@ -551,8 +551,7 @@ export class DynamicRule implements IExerciseRule {
         }
         return 0;
       }
-      case 'CERVICAL_SPINE_ALIGNMENT':
-      case 'CERVICOTHORACIC_ANGLE': {
+      case 'CERVICAL_SPINE_ALIGNMENT': {
         const lEar = pose[POSE_LANDMARKS.LEFT_EAR];
         const rEar = pose[POSE_LANDMARKS.RIGHT_EAR];
         const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
@@ -1318,21 +1317,6 @@ export class DynamicRule implements IExerciseRule {
         }
         return 1.0;
       }
-      case 'CERVICOTHORACIC_ANGLE': {
-        const lEar = pose[POSE_LANDMARKS.LEFT_EAR] || pose['LEFT_EAR'];
-        const rEar = pose[POSE_LANDMARKS.RIGHT_EAR] || pose['RIGHT_EAR'];
-        const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER] || pose['LEFT_SHOULDER'];
-        const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER] || pose['RIGHT_SHOULDER'];
-        const lHip = pose[POSE_LANDMARKS.LEFT_HIP] || pose['LEFT_HIP'];
-        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP] || pose['RIGHT_HIP'];
-        const ear = lEar || rEar;
-        const shoulder = (lShoulder && rShoulder) ? { x: (lShoulder.x + rShoulder.x) / 2, y: (lShoulder.y + rShoulder.y) / 2 } : (lShoulder || rShoulder);
-        const hip = (lHip && rHip) ? { x: (lHip.x + rHip.x) / 2, y: (lHip.y + rHip.y) / 2 } : (lHip || rHip);
-        if (ear && shoulder && hip) {
-          return calculateAngle(ear, shoulder, hip);
-        }
-        return 180;
-      }
       default:
         return 0;
     }
@@ -1560,11 +1544,13 @@ export class DynamicRule implements IExerciseRule {
 
     const currentPhaseConfig = phases[this.currentPhaseIndex] || phases[0];
 
-    // If we just reset (e.g. from previous rep completion)
-    if (state.currentPhase === MovementPhase.INITIALIZING || state.currentPhase === MovementPhase.START_POSITION) {
+    // If we just reset or re-initialized from idle
+    if (state.currentPhase === MovementPhase.INITIALIZING) {
       this.currentPhaseIndex = 0;
-      
-      if (!this.isRepCalibrated) {
+      this.isRepCalibrated = false;
+    }
+
+    if (!this.isRepCalibrated && (this.currentPhaseIndex === 0 || state.currentPhase === MovementPhase.INITIALIZING || state.currentPhase === MovementPhase.START_POSITION)) {
         // Only attempt calibration if we have at least one shoulder and one hip visible
         const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
         const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER];
@@ -1643,10 +1629,9 @@ export class DynamicRule implements IExerciseRule {
       else if (firstPhaseName.includes('BOTTOM') || firstPhaseName.includes('HOLD') || firstPhaseName.includes('PAUSE')) newPhase = MovementPhase.BOTTOM_POSITION;
       else if (firstPhaseName.includes('ASCEND') || firstPhaseName.includes('RETURN MOVEMENT')) newPhase = MovementPhase.ASCENDING;
       else newPhase = MovementPhase.DESCENDING; // Smart fallback for Phase 0
-    }
 
     // Check if Phase 0 entry cue should be emitted on rep/session start
-    if (this.currentPhaseIndex === 0 && !this.phase0CueEmitted && phases[0]?.entryCueEnabled && phases[0]?.entryCue) {
+    if (this.currentPhaseIndex === 0 && !this.phase0CueEmitted && phases[0]?.entryCue && phases[0]?.entryCueEnabled !== false) {
       pendingEntryCue = phases[0].entryCue;
       this.phase0CueEmitted = true;
     }
@@ -1788,7 +1773,7 @@ export class DynamicRule implements IExerciseRule {
             }
 
             // Emit entry cue if configured and enabled for the new phase
-            if (nextPhaseConfig?.entryCueEnabled && nextPhaseConfig?.entryCue) {
+            if (nextPhaseConfig?.entryCue && nextPhaseConfig?.entryCueEnabled !== false) {
               pendingEntryCue = nextPhaseConfig.entryCue;
             }
 

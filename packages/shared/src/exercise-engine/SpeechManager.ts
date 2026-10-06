@@ -308,13 +308,17 @@ export class SpeechManager {
     return 'info';
   }
 
+  private lastRepCompletionTime: number = 0; // Priority lock to protect rep celebrations
+  private activeUtterance: any = null; // Prevent browser GC from prematurely killing active speech
+
   /**
    * Speaks the text via Web Speech API speechSynthesis.
    * @param rawText The feedback string or message to speak.
-   * @param force Set to true to instantly interrupt ongoing speech and bypass overall cooldowns (e.g. for rep count updates)
+   * @param force Set to true to bypass routine cooldowns (e.g. for phase transitions or rep updates)
    * @param repIndex Pass the current repCount to enforce once-per-rep feedback restrictions.
+   * @param isRepCelebration Set to true when speaking rep count or completion praises.
    */
-  public speak(rawText: string, force: boolean = false, repIndex: number = -1) {
+  public speak(rawText: string, force: boolean = false, repIndex: number = -1, isRepCelebration: boolean = false) {
     if (!this.isEnabled) return;
     if (!this.customSpeakFn && (typeof window === 'undefined' || !window.speechSynthesis)) return;
 
@@ -324,8 +328,20 @@ export class SpeechManager {
 
     const now = Date.now();
 
-    // Enforce once-per-rep restriction
-    if (repIndex !== -1) {
+    // Priority Protection: If a rep completion voice just fired (< 2000ms ago) and is still actively speaking,
+    // do NOT let routine phase entry cues cancel or silence the success voice.
+    if (!isRepCelebration && (now - this.lastRepCompletionTime < 2000)) {
+      if (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.speaking) {
+        return;
+      }
+    }
+
+    if (isRepCelebration) {
+      this.lastRepCompletionTime = now;
+    }
+
+    // Enforce once-per-rep restriction for live feedback
+    if (repIndex !== -1 && !isRepCelebration) {
       if (repIndex !== this.currentRepIndex) {
         this.currentRepIndex = repIndex;
         this.repSpokenCues.clear();
@@ -351,32 +367,53 @@ export class SpeechManager {
     }
 
     try {
-      // Stop current speech instantly to give clean real-time feedback
-      if (this.customStopFn) {
-        this.customStopFn();
-      } else if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-
       if (this.customSpeakFn) {
+        if (this.customStopFn && force) this.customStopFn();
         this.customSpeakFn(textToSpeak, this.speechRate, this.speechPitch);
       } else if (typeof window !== 'undefined' && window.speechSynthesis) {
-        const utterance = new SpeechSynthesisUtterance(textToSpeak);
-        utterance.rate = this.speechRate;
-        utterance.pitch = this.speechPitch;
-
-        // Select high quality English voice if available
-        const voices = window.speechSynthesis.getVoices();
-        const idealVoice = 
-          voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('google')) ||
-          voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('natural')) ||
-          voices.find(v => v.lang.startsWith('en-'));
-        
-        if (idealVoice) {
-          utterance.voice = idealVoice;
+        const synth = window.speechSynthesis;
+        if (synth.paused) {
+          synth.resume();
         }
 
-        window.speechSynthesis.speak(utterance);
+        const playSpeech = () => {
+          const utterance = new SpeechSynthesisUtterance(textToSpeak);
+          this.activeUtterance = utterance; // Prevent GC from killing audio mid-sentence
+          utterance.rate = this.speechRate;
+          utterance.pitch = this.speechPitch;
+
+          utterance.onend = () => {
+            if (this.activeUtterance === utterance) {
+              this.activeUtterance = null;
+            }
+          };
+
+          utterance.onerror = () => {
+            if (this.activeUtterance === utterance) {
+              this.activeUtterance = null;
+            }
+          };
+
+          const voices = synth.getVoices();
+          const idealVoice = 
+            voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('google')) ||
+            voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('natural')) ||
+            voices.find(v => v.lang.startsWith('en-'));
+          
+          if (idealVoice) {
+            utterance.voice = idealVoice;
+          }
+
+          synth.speak(utterance);
+        };
+
+        if (force && synth.speaking) {
+          synth.cancel();
+          // Delay speak slightly after cancel to workaround Chromium IPC race condition
+          setTimeout(playSpeech, 35);
+        } else {
+          playSpeech();
+        }
       }
 
       // Record logs
@@ -385,7 +422,7 @@ export class SpeechManager {
       this.phraseHistory[textToSpeak] = now;
 
       // Record once-per-rep mapping
-      if (repIndex !== -1) {
+      if (repIndex !== -1 && !isRepCelebration) {
         this.repSpokenCues.add(textToSpeak);
       }
     } catch (e) {
@@ -402,7 +439,7 @@ export class SpeechManager {
     } else {
       message += ` Nice repp.`;
     }
-    this.speak(message, true);
+    this.speak(message, true, -1, true);
   }
 
   /**
@@ -422,7 +459,7 @@ export class SpeechManager {
       }
     }
 
-    this.speak(`No repp. ${advice}`, true);
+    this.speak(`No repp. ${advice}`, true, -1, true);
   }
 
   public stop() {

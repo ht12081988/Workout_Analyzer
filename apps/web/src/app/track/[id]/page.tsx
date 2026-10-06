@@ -19,6 +19,35 @@ const HeaderStat = ({ label, value, color }: { label: string; value: string; col
   </div>
 );
 
+const SpineIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    {/* Central spinal cord axis */}
+    <path d="M12 2.5v19" strokeWidth="1.6" />
+    {/* Cervical vertebrae */}
+    <path d="M9 4.5h6" />
+    <circle cx="12" cy="4.5" r="1.3" fill="currentColor" />
+    <path d="M8.2 8h7.6" />
+    <circle cx="12" cy="8" r="1.3" fill="currentColor" />
+    {/* Thoracic vertebrae */}
+    <path d="M7.5 11.5h9" />
+    <circle cx="12" cy="11.5" r="1.3" fill="currentColor" />
+    <path d="M7.2 15h9.6" />
+    <circle cx="12" cy="15" r="1.3" fill="currentColor" />
+    {/* Lumbar & Sacrum */}
+    <path d="M8 18.5h8" />
+    <circle cx="12" cy="18.5" r="1.3" fill="currentColor" />
+    <circle cx="12" cy="21.2" r="0.9" fill="currentColor" />
+  </svg>
+);
+
 export default function TrackPage() {
   const params = useParams();
   const router = useRouter();
@@ -31,7 +60,7 @@ export default function TrackPage() {
   const [speech] = useState(() => new SpeechManager());
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [showAngles, setShowAngles] = useState(true);
-  const [showSilhouette, setShowSilhouette] = useState(true);
+  const [showSilhouette, setShowSilhouette] = useState(false);
 
   useEffect(() => {
     setIsVoiceEnabled(speech.getIsEnabled());
@@ -362,19 +391,26 @@ export default function TrackPage() {
     setPose(newPose);
     const newState = engine.processFrame(newPose, undefined, mask);
 
-    // 1. Process Finished Movements
+    // 1. Process Finished Movements Stats
     const currentStats = engine.getLastMovementStats();
     let newlyFinishedStats: RepStats | null = null;
     
     if (currentStats && (currentStats as any).startTime !== lastFinishedMovementIdRef.current) {
       lastFinishedMovementIdRef.current = (currentStats as any).startTime;
       newlyFinishedStats = currentStats;
+    }
 
-      // Handle celebrations for success
+    // 2. Process Attempts, Celebrations & Persistence
+    const latestAttempt = newState.attemptLog[0];
+    if (latestAttempt && latestAttempt.id !== lastAttemptIdRef.current) {
+      lastAttemptIdRef.current = latestAttempt.id;
+
+      // Handle voice celebrations for success or failure
       if (newState.isStarted) {
-        if (currentStats.status === 'valid') {
-          speech.speakRepCount(newState.repCount, currentStats.qualityScore);
-          if (currentStats.qualityScore > 80) {
+        const isSuccess = latestAttempt.status === 'success' || (latestAttempt as any).success === true;
+        if (isSuccess) {
+          speech.speakRepCount(newState.repCount, latestAttempt.qualityScore || 100);
+          if ((latestAttempt.qualityScore || 100) > 80) {
             confetti({
               particleCount: 40,
               spread: 70,
@@ -382,17 +418,11 @@ export default function TrackPage() {
               colors: ['#00f2fe', '#fff', '#7000ff']
             });
           }
-        } else if (currentStats.status === 'failed') {
-          const failureReason = currentStats.deviations && currentStats.deviations.length > 0 ? currentStats.deviations[0].message : 'rep failed';
-          speech.speakFailure(failureReason);
+        } else {
+          speech.speakFailure(latestAttempt.reason || 'rep failed');
         }
       }
-    }
 
-    // 2. Process Attempts and link with Movement Data
-    const latestAttempt = newState.attemptLog[0];
-    if (latestAttempt && latestAttempt.id !== lastAttemptIdRef.current) {
-      lastAttemptIdRef.current = latestAttempt.id;
       // We log the attempt immediately to get the DB ID
       logAttempt(latestAttempt).then(dbId => {
         if (dbId) {
@@ -437,6 +467,8 @@ export default function TrackPage() {
     const sid = await saveSession('active');
     if (sid) {
       lastLoggedRepCount.current = 0;
+      lastAttemptIdRef.current = null;
+      lastFinishedMovementIdRef.current = null;
       engine.start();
       setState({ ...engine.getState() });
       console.log('Tracking started successfully with session:', sid);
@@ -561,9 +593,9 @@ export default function TrackPage() {
                 ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] hover:bg-cyan-500/20'
                 : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'
             }`}
-            title={showSilhouette ? 'Hide AI Silhouette Boundary' : 'Show AI Silhouette Boundary'}
+            title={showSilhouette ? 'Hide Spine / Silhouette Tracking' : 'Show Spine / Silhouette Tracking'}
           >
-            <Layers className="w-5 h-5" />
+            <SpineIcon className="w-5 h-5" />
           </button>
 
           <button

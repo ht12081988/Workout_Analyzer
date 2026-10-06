@@ -179,6 +179,114 @@ export default function AdminExercisesPage() {
     });
   };
 
+  const [importModal, setImportModal] = useState<{
+    isOpen: boolean;
+    fileData: any | null;
+    fileName: string;
+    error: string | null;
+    overwrite: boolean;
+    importing: boolean;
+  }>({
+    isOpen: false,
+    fileData: null,
+    fileName: '',
+    error: null,
+    overwrite: false,
+    importing: false
+  });
+
+  const handleExport = async (exerciseId: string | number, name: string) => {
+    try {
+      const res = await fetch(`/api/admin/exercises/${exerciseId}/export`);
+      if (!res.ok) throw new Error("Failed to export exercise data");
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (name || 'exercise').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      a.download = `${safeName}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      console.error(err);
+      showAlert("Error exporting exercise: " + err.message, true);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        const exerciseData = json.exercise || json;
+        
+        if (!exerciseData.name) {
+          setImportModal(prev => ({ ...prev, error: 'Invalid JSON: Missing "name" property.', fileData: null }));
+          return;
+        }
+
+        if (!exerciseData.dynamicProfile && !exerciseData.trajectoryProfile && !exerciseData.phasesConfig) {
+          setImportModal(prev => ({ ...prev, error: 'Invalid JSON: Missing dynamicProfile or trajectoryProfile rules.', fileData: null }));
+          return;
+        }
+
+        setImportModal(prev => ({
+          ...prev,
+          fileName: file.name,
+          fileData: exerciseData,
+          error: null
+        }));
+      } catch (err: any) {
+        setImportModal(prev => ({ ...prev, error: 'Could not parse file as JSON: ' + err.message, fileData: null }));
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importModal.fileData) return;
+
+    setImportModal(prev => ({ ...prev, importing: true, error: null }));
+    try {
+      const res = await fetch('/api/admin/exercises/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          exercise: importModal.fileData,
+          overwrite: importModal.overwrite
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to import exercise');
+
+      // Refresh list
+      const fetchRes = await fetch('/api/admin/exercises');
+      const exData = await fetchRes.json();
+      setExercises(exData);
+
+      setImportModal({
+        isOpen: false,
+        fileData: null,
+        fileName: '',
+        error: null,
+        overwrite: false,
+        importing: false
+      });
+
+      showAlert(`Exercise "${data.name}" successfully imported and ready!`);
+    } catch (err: any) {
+      console.error(err);
+      setImportModal(prev => ({ ...prev, importing: false, error: err.message }));
+    }
+  };
+
   return (
     <div className="px-10 py-10 w-full space-y-6">
       <div className="flex justify-between items-center">
@@ -203,13 +311,23 @@ export default function AdminExercisesPage() {
           </button>
         </div>
         
-        <Link 
-          href="/admin/exercises/builder" 
-          className="flex items-center gap-2 px-4 py-2 bg-flame text-on-dark rounded-lg font-bold text-sm shadow-flame hover:scale-[1.02] active:scale-95 transition-all"
-        >
-          <span className="material-symbols-outlined text-[20px]">add</span>
-          Create Exercise
-        </Link>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setImportModal({ isOpen: true, fileData: null, fileName: '', error: null, overwrite: false, importing: false })}
+            className="flex items-center gap-2 px-4 py-2 bg-surface-elev hover:bg-surface-elev-hover text-fg rounded-lg font-bold text-sm border border-border hover:border-flame/30 transition-all shadow-sm active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[20px] text-flame">file_upload</span>
+            Import JSON
+          </button>
+
+          <Link 
+            href="/admin/exercises/builder" 
+            className="flex items-center gap-2 px-4 py-2 bg-flame text-on-dark rounded-lg font-bold text-sm shadow-flame hover:scale-[1.02] active:scale-95 transition-all"
+          >
+            <span className="material-symbols-outlined text-[20px]">add</span>
+            Create Exercise
+          </Link>
+        </div>
       </div>
 
       {showFilters && (
@@ -293,7 +411,15 @@ export default function AdminExercisesPage() {
                     className="w-full h-full object-cover transition-transform duration-500 group-hover/image:scale-105" 
                   />
                   <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover/image:opacity-100 transition-opacity duration-300 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => handleExport(ex.id, ex.name)}
+                        className="text-white/80 hover:text-flame flex items-center transition-colors p-1"
+                        title="Export JSON"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">file_download</span>
+                      </button>
+
                       <button 
                         onClick={() => handleReplicate(ex.id, ex.name, ex.description)}
                         className="text-white/80 hover:text-white flex items-center transition-colors p-1"
@@ -321,7 +447,15 @@ export default function AdminExercisesPage() {
                 </div>
               ) : (
                 <div className="flex justify-between items-center py-2">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => handleExport(ex.id, ex.name)}
+                      className="text-fg-mute hover:text-flame flex items-center transition-colors p-1"
+                      title="Export JSON"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">file_download</span>
+                    </button>
+
                     <button 
                       onClick={() => handleReplicate(ex.id, ex.name, ex.description)}
                       className="text-fg-mute hover:text-flame flex items-center transition-colors p-1"
@@ -359,6 +493,131 @@ export default function AdminExercisesPage() {
         </div>
       )}
 
+      {/* Single Exercise Import Modal */}
+      {importModal.isOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-surface-card p-6 sm:p-8 rounded-[2rem] max-w-lg w-full shadow-2xl border border-border relative">
+            <button 
+              onClick={() => setImportModal(prev => ({ ...prev, isOpen: false }))}
+              className="absolute top-6 right-6 w-8 h-8 flex items-center justify-center rounded-full bg-surface-elev text-fg-mute hover:text-fg hover:bg-surface-elev-hover transition-colors"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+            
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-flame/10 flex items-center justify-center text-flame">
+                <span className="material-symbols-outlined text-[24px]">file_upload</span>
+              </div>
+              <h3 className="h3 text-fg">Import Exercise (JSON)</h3>
+            </div>
+            
+            <p className="text-sm text-fg-mute mb-6">
+              Select an exported VisionFit exercise <code className="text-xs bg-surface-elev px-1.5 py-0.5 rounded border border-border">.json</code> file to import all its biomechanical rules, phases, and metadata.
+            </p>
+
+            {/* File Upload Area */}
+            <div className="mb-6">
+              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border hover:border-flame/50 rounded-2xl cursor-pointer bg-bg/50 hover:bg-surface-elev/30 transition-all p-4 text-center">
+                <span className="material-symbols-outlined text-3xl text-fg-mute mb-2">upload_file</span>
+                <span className="text-sm font-semibold text-fg">
+                  {importModal.fileName ? importModal.fileName : "Click or drag & drop .json file here"}
+                </span>
+                <span className="text-xs text-fg-mute mt-1">Accepts standard VisionFit Exercise JSON</span>
+                <input 
+                  type="file" 
+                  accept=".json,application/json" 
+                  className="hidden" 
+                  onChange={handleFileChange}
+                />
+              </label>
+            </div>
+
+            {/* Preview of Parsed Data */}
+            {importModal.fileData && (
+              <div className="p-4 bg-bg rounded-xl border border-border mb-6 space-y-3 animate-in fade-in duration-150">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="font-bold text-fg text-base">{importModal.fileData.name}</h4>
+                    <p className="text-xs text-fg-mute mt-0.5">{importModal.fileData.description || 'No description'}</p>
+                  </div>
+                  <span className="kicker bg-flame/10 text-flame px-2 py-0.5 rounded-full text-[11px] font-bold">
+                    {importModal.fileData.category || 'AI Generated'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/50 text-xs">
+                  <div>
+                    <span className="text-fg-mute block">Camera View:</span>
+                    <span className="font-semibold text-fg uppercase">{importModal.fileData.camera_angle || 'FRONT'}</span>
+                  </div>
+                  <div>
+                    <span className="text-fg-mute block">Phases:</span>
+                    <span className="font-semibold text-fg">
+                      {importModal.fileData.dynamicProfile?.phases?.length || 0}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-fg-mute block">Voice Cues:</span>
+                    <span className="font-semibold text-fg">
+                      {Array.isArray(importModal.fileData.voice_cues) ? importModal.fileData.voice_cues.length : 0}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border/50">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-fg font-medium">
+                    <input 
+                      type="checkbox" 
+                      checked={importModal.overwrite}
+                      onChange={e => setImportModal(prev => ({ ...prev, overwrite: e.target.checked }))}
+                      className="rounded border-border text-flame focus:ring-flame"
+                    />
+                    <span>Overwrite if an exercise with the same name exists</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {importModal.error && (
+              <div className="p-3 bg-err/10 border border-err/30 rounded-xl text-xs text-err mb-6 flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px]">error</span>
+                <span>{importModal.error}</span>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setImportModal(prev => ({ ...prev, isOpen: false }))}
+                className="flex-1 py-3 bg-surface-elev text-fg-mute rounded-xl font-bold hover:bg-surface-elev-hover transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              
+              <button
+                onClick={handleConfirmImport}
+                disabled={!importModal.fileData || importModal.importing}
+                className="flex-1 py-3 bg-flame text-on-dark rounded-xl font-bold hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:pointer-events-none transition-all shadow-flame text-sm flex items-center justify-center gap-2"
+              >
+                {importModal.importing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[18px]">check</span>
+                    Import Exercise
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* Confirmation Modal */}
       {confirmModal?.isOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-surface-card p-6 sm:p-8 rounded-[2rem] max-w-sm w-full shadow-2xl border border-border relative">

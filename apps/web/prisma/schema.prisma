@@ -206,11 +206,13 @@ model admins {
 }
 
 model master_metrics {
-  metric_key  String  @id @db.VarChar(100)
-  metric_name String  @db.VarChar(255)
+  metric_key  String   @id @db.VarChar(100)
+  metric_name String   @db.VarChar(255)
   description String?
-  min_val     Decimal @db.Decimal
-  max_val     Decimal @db.Decimal
-  step_val    Decimal @db.Decimal
-  direction   String  @db.VarChar(10)
+  min_val     Decimal  @db.Decimal
+  max_val     Decimal  @db.Decimal
+  step_val    Decimal  @db.Decimal
+  direction   String   @db.VarChar(10)
+  default_val Decimal? @db.Decimal
+  category    String?  @db.VarChar(100)
 }

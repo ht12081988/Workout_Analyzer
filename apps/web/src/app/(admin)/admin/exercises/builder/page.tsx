@@ -446,6 +446,113 @@ export default function NoCodeBuilderPage() {
     }
   };
 
+  const handleExportJSON = () => {
+    if (!exerciseName) {
+      showAlert("Please enter an exercise name before exporting", true);
+      return;
+    }
+
+    const phases = markers.map((m, idx) => ({
+      name: m.label.startsWith(`Phase ${idx + 1}`) ? m.label : `Phase ${idx + 1}: ${m.label}`,
+      isSetupPhase: phasesConfig[m.id]?.isSetupPhase || false,
+      entryConditions: phasesConfig[m.id]?.entryConditions || [],
+      formChecks: phasesConfig[m.id]?.formChecks || [],
+      entryCue: phasesConfig[m.id]?.entryCue || '',
+      entryCueEnabled: phasesConfig[m.id]?.entryCueEnabled || false,
+    }));
+
+    const exportPayload = {
+      format: 'visionfit_exercise',
+      version: '1.0',
+      exported_at: new Date().toISOString(),
+      name: exerciseName,
+      description: exerciseDescription,
+      category,
+      subcategory: subcategory || null,
+      camera_angle: cameraAngle,
+      image_path: imagePath || null,
+      video_path: videoPath || null,
+      trackingMode: 'phases',
+      dynamicProfile: { phases }
+    };
+
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeName = exerciseName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    a.download = `${safeName}.json`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        const data = json.exercise || json;
+
+        if (data.name) setExerciseName(data.name);
+        if (data.description !== undefined) setExerciseDescription(data.description || '');
+        if (data.category) setCategory(data.category);
+        if (data.subcategory !== undefined) setSubcategory(data.subcategory || '');
+        if (data.camera_angle) setCameraAngle(data.camera_angle);
+        if (data.image_path !== undefined) setImagePath(data.image_path || '');
+        if (data.video_path !== undefined) setVideoPath(data.video_path || '');
+
+        const importedPhases = data.dynamicProfile?.phases || data.phases || [];
+        if (Array.isArray(importedPhases) && importedPhases.length > 0) {
+          const newMarkers: typeof markers = [];
+          const newPhasesConfig: typeof phasesConfig = {};
+          let baseTimeMs = 0;
+
+          importedPhases.forEach((phase: any, index: number) => {
+            const newId = Date.now().toString() + index;
+            newMarkers.push({
+              id: newId,
+              timeMs: baseTimeMs + (index * 1000),
+              label: phase.name || phase.label || `Phase ${index + 1}`
+            });
+
+            const entryConditions = (phase.entryConditions || []).map((r: any, rIdx: number) => ({
+              ...r,
+              id: r.id || `ec-${newId}-${rIdx}`
+            }));
+            const formChecks = (phase.formChecks || []).map((r: any, rIdx: number) => ({
+              ...r,
+              id: r.id || `fc-${newId}-${rIdx}`
+            }));
+
+            newPhasesConfig[newId] = {
+              entryConditions,
+              formChecks,
+              isSetupPhase: phase.isSetupPhase || false,
+              entryCue: phase.entryCue || '',
+              entryCueEnabled: phase.entryCueEnabled || false
+            };
+          });
+
+          setMarkers(newMarkers);
+          setPhasesConfig(newPhasesConfig);
+          if (newMarkers.length > 0) {
+            setSelectedMarkerId(newMarkers[0].id);
+          }
+        }
+
+        showAlert(`Successfully loaded "${data.name || file.name}" into the builder!`, false);
+      } catch (err: any) {
+        showAlert(`Failed to parse JSON file: ${err.message}`, true);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleDuplicatePhase = (markerId: string) => {
     const originalMarker = markers.find(m => m.id === markerId);
     if (!originalMarker) return;
@@ -562,18 +669,40 @@ export default function NoCodeBuilderPage() {
       <div className="flex flex-col gap-4 mt-6">
         <div className="flex justify-between items-center">
           <h3 className="kicker">Movement Phases</h3>
-          <button 
-            onClick={handleGenerateAIBlueprint} 
-            disabled={isGenerating}
-            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-sm font-bold rounded-lg shadow-md hover:opacity-90 disabled:opacity-50 flex items-center gap-2 transition-all"
-          >
-            {isGenerating ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <span className="text-lg leading-none">🪄</span>
-            )}
-            {isGenerating ? "Generating..." : "Generate AI Blueprint"}
-          </button>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 px-3 py-2 bg-surface-elev hover:bg-surface-elev-hover text-fg rounded-lg font-bold text-xs border border-border cursor-pointer transition-all shadow-sm active:scale-95">
+              <span className="material-symbols-outlined text-[16px] text-flame">file_upload</span>
+              Load JSON
+              <input 
+                type="file" 
+                accept=".json,application/json" 
+                className="hidden" 
+                onChange={handleImportJSON} 
+              />
+            </label>
+
+            <button
+              onClick={handleExportJSON}
+              className="flex items-center gap-1.5 px-3 py-2 bg-surface-elev hover:bg-surface-elev-hover text-fg rounded-lg font-bold text-xs border border-border transition-all shadow-sm active:scale-95"
+              title="Export configuration as JSON"
+            >
+              <span className="material-symbols-outlined text-[16px] text-fg-mute">file_download</span>
+              Export JSON
+            </button>
+
+            <button 
+              onClick={handleGenerateAIBlueprint} 
+              disabled={isGenerating}
+              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-xs font-bold rounded-lg shadow-md hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 transition-all"
+            >
+              {isGenerating ? (
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <span className="text-base leading-none">🪄</span>
+              )}
+              {isGenerating ? "Generating..." : "Generate AI Blueprint"}
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-4 mb-2 min-w-0 overflow-hidden">
           <div className="flex items-center bg-surface-elev border border-border p-1.5 rounded-2xl shrink-0">
