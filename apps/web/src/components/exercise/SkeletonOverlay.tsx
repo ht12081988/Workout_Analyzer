@@ -473,8 +473,8 @@ export const SkeletonOverlay: React.FC<SkeletonOverlayProps> = ({
     }
 
     // 1. Draw Cervical / Head-to-Shoulder AI Silhouette Boundary (Neon Violet / Magenta)
-    // Draw cervical and thoracic contours with interpolated vertebra dots bridging the gap
-    if (showSilhouette && spineData && (spineData.cervicalContourPoints?.length > 0 || spineData.contourPoints?.length > 0)) {
+    // Draw cervical and thoracic contours with gap filled from mask
+    if (showSilhouette && spineData && ((spineData.cervicalContourPoints?.length ?? 0) > 0 || (spineData.contourPoints?.length ?? 0) > 0)) {
       ctx.save();
 
       const neckPts = spineData.cervicalContourPoints ? spineData.cervicalContourPoints.map(p => getCanvasPoint({ x: p.x, y: p.y, z: 0 })) : [];
