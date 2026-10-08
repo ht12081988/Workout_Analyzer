@@ -8,8 +8,8 @@ async function seedWallPeel() {
     const category = 'Spine';
     const subcategory = 'Mobility Assessment';
     const cameraAngle = 'SIDE';
-    const videoPath = ''; 
-    const imagePath = ''; 
+    const videoPath = '';
+    const imagePath = '';
     const description = 'A strict spinal articulation assessment. Stand flat against a wall and peel the spine forward vertebrae by vertebrae. The test stops the moment the hips detach from the wall.';
 
     // 1. Check if exercise already exists

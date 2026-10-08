@@ -89,7 +89,12 @@ const getParsedLandmarks = (frame: Frame | undefined): PoseData => {
       return {};
     }
   }
-  return typeof lms === 'object' && lms !== null ? lms : {};
+  // Strip __spine to prevent it from being treated as a landmark
+  if (typeof lms === 'object' && lms !== null) {
+    const { __spine, ...rest } = lms;
+    return rest;
+  }
+  return {};
 };
 
 const SCALE = 2.5;

@@ -19,4 +19,9 @@ DELETE FROM workout_landmark_frames WHERE timestamp < '2026-05-13'
 DELETE FROM workout_joint_angles WHERE created_at < '2026-05-13'
 DELETE FROM workout_deviation_logs WHERE created_at < '2026-05-20'
 
+SELECT 
+  landmarks->>'__spine' as spine_json
+FROM workout_landmark_frames 
+WHERE session_id = (SELECT id FROM workout_sessions ORDER BY created_at DESC LIMIT 1)
+LIMIT 1;
 

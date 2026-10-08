@@ -1,4 +1,4 @@
-import { Landmark } from './types';
+import { Landmark, CompactSpine, SpineCurvatureResult } from './types';
 
 /**
  * Calculates the angle between three points (A, B, C) where B is the vertex.
@@ -267,7 +267,7 @@ export function extractBackContourPoints(
   const raySteps = 48; // Granular marching steps along the normal ray
 
   for (let s = 0; s < numStations; s++) {
-    const t = 0.05 + 0.90 * (s / (numStations - 1)); // Along spine from Hip (t=0) to Shoulder (t=1)
+    const t = 0 + 1.0 * (s / (numStations - 1)); // Along spine from Hip (t=0) to Shoulder (t=1) - full coverage
     const axisX = hip.x + t * spineDx;
     const axisY = hip.y + t * spineDy;
 
@@ -368,7 +368,7 @@ export function extractCervicalContourPoints(
   const raySteps = 30;
 
   for (let s = 0; s < numStations; s++) {
-    const t = 0.15 + 0.75 * (s / (numStations - 1));
+    const t = 0 + 1.0 * (s / (numStations - 1)); // From shoulder (t=0) to head (t=1) - full coverage
     const axisX = shoulder.x + t * neckDx;
     const axisY = shoulder.y + t * neckDy;
 
@@ -716,5 +716,42 @@ export function calculateSpineCurvature(
     contourPoints: contourPoints.length > 0 ? contourPoints : undefined,
     cervicalContourPoints: cervicalContourPoints.length > 0 ? cervicalContourPoints : undefined,
     segmentalAngles
+  };
+}
+
+/**
+ * Converts a SpineCurvatureResult to a compact binary representation.
+ * Rounds coordinates to 3 decimals and returns undefined if no contour data.
+ */
+export function compactSpine(spineData: SpineCurvatureResult | undefined): CompactSpine | undefined {
+  if (!spineData) return undefined;
+
+  const contourPoints = spineData.contourPoints || [];
+  const cervicalContourPoints = spineData.cervicalContourPoints || [];
+
+  // Only compact if we have contour data
+  if (contourPoints.length === 0 && cervicalContourPoints.length === 0) {
+    return undefined;
+  }
+
+  // Flatten and round contour points
+  const c: number[] = [];
+  for (const pt of contourPoints) {
+    c.push(Math.round(pt.x * 1000) / 1000);
+    c.push(Math.round(pt.y * 1000) / 1000);
+  }
+
+  // Flatten and round cervical contour points
+  const n: number[] = [];
+  for (const pt of cervicalContourPoints) {
+    n.push(Math.round(pt.x * 1000) / 1000);
+    n.push(Math.round(pt.y * 1000) / 1000);
+  }
+
+  return {
+    c,
+    n,
+    d: Math.round(spineData.curvatureDegrees * 10) / 10,
+    f: spineData.isFlexion
   };
 }

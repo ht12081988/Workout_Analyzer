@@ -5,6 +5,7 @@ import { SquatRule } from './SquatRule';
 import { SplitLungeRule } from './SplitLungeRule';
 import { DynamicRule } from './DynamicRule';
 import { TrajectoryRule } from './TrajectoryRule';
+import { compactSpine } from './angle-utils';
 
 export interface IExerciseRule {
   validate(pose: PoseData, state: ExerciseState, timeMs?: number, segmentationMask?: any): {
@@ -176,7 +177,8 @@ export class MovementEngine {
       }
       this.currentRepMetadata._perPhaseFrameBuffers[activePhaseIndex].push({
         pose: { ...pose },
-        angles: { ...result.angles }
+        angles: { ...result.angles },
+        spine: compactSpine(result.spineData)
       });
 
       if (!this.currentRepMetadata.phaseFrames) {
@@ -191,7 +193,8 @@ export class MovementEngine {
           angles: { ...result.angles },
           frameNumber: this.currentRepMetadata.frameCount,
           phaseIndex: activePhaseIndex + 1,
-          phaseName: activePhaseName
+          phaseName: activePhaseName,
+          spine: compactSpine(result.spineData)
         });
 
         // If transitioning from a previous phase, extract 2 intermediate frames from its buffer
@@ -206,7 +209,8 @@ export class MovementEngine {
               landmarks: prevBuf[idx1].pose,
               angles: prevBuf[idx1].angles,
               frameNumber: Math.max(1, this.currentRepMetadata.frameCount - Math.floor(prevBuf.length * 0.67)),
-              phaseIndex: this._lastRecordedPhaseIndex + 1
+              phaseIndex: this._lastRecordedPhaseIndex + 1,
+              spine: prevBuf[idx1].spine
             });
 
             this.currentRepMetadata.phaseFrames.push({
@@ -214,7 +218,8 @@ export class MovementEngine {
               landmarks: prevBuf[idx2].pose,
               angles: prevBuf[idx2].angles,
               frameNumber: Math.max(1, this.currentRepMetadata.frameCount - Math.floor(prevBuf.length * 0.33)),
-              phaseIndex: this._lastRecordedPhaseIndex + 1
+              phaseIndex: this._lastRecordedPhaseIndex + 1,
+              spine: prevBuf[idx2].spine
             });
           }
           this.currentRepMetadata._perPhaseFrameBuffers[this._lastRecordedPhaseIndex] = []; // Free memory
@@ -235,9 +240,9 @@ export class MovementEngine {
         this.currentRepMetadata.startFrameAngles = { ...result.angles };
       }
       if (result.newPhase === MovementPhase.DESCENDING || result.newPhase === MovementPhase.LOWERING) {
-        this.currentRepMetadata._descendingFramesBuffer?.push({ pose: { ...pose }, angles: { ...result.angles } });
+        this.currentRepMetadata._descendingFramesBuffer?.push({ pose: { ...pose }, angles: { ...result.angles }, spine: compactSpine(result.spineData) });
       } else if (result.newPhase === MovementPhase.ASCENDING) {
-        this.currentRepMetadata._ascendingFramesBuffer?.push({ pose: { ...pose }, angles: { ...result.angles } });
+        this.currentRepMetadata._ascendingFramesBuffer?.push({ pose: { ...pose }, angles: { ...result.angles }, spine: compactSpine(result.spineData) });
       }
       
       if (result.newPhase !== this.state.currentPhase) {
@@ -396,7 +401,8 @@ export class MovementEngine {
             type: 'rep_end',
             landmarks: { ...pose },
             angles: { ...result.angles },
-            frameNumber: this.currentRepMetadata.frameCount
+            frameNumber: this.currentRepMetadata.frameCount,
+            spine: compactSpine(result.spineData)
           });
         }
       }

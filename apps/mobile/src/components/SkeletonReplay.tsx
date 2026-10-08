@@ -69,7 +69,12 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
     while (typeof lms === 'string') {
       try { lms = JSON.parse(lms); } catch(e) { return {}; }
     }
-    return typeof lms === 'object' && lms !== null ? lms : {};
+    // Strip __spine to prevent it from being treated as a landmark
+    if (typeof lms === 'object' && lms !== null) {
+      const { __spine, ...rest } = lms;
+      return rest;
+    }
+    return {};
   };
 
   // Helper to interpolate between two PoseData objects

@@ -30,6 +30,13 @@ export interface ExerciseRule {
   severity: 'warning' | 'error' | 'info';
 }
 
+export interface CompactSpine {
+  c: number[];           // contourPoints [x0,y0,x1,y1,...] (cyan, <=16 pts)
+  n: number[];           // cervicalContourPoints [x0,y0,...] (magenta, <=8 pts)
+  d: number;             // curvatureDegrees
+  f: boolean;            // isFlexion
+}
+
 export interface PhaseFrameSample {
   type: string;
   landmarks: PoseData;
@@ -37,6 +44,7 @@ export interface PhaseFrameSample {
   frameNumber: number;
   phaseIndex?: number;
   phaseName?: string;
+  spine?: CompactSpine;
 }
 
 export interface RepStats {
@@ -71,9 +79,9 @@ export interface RepStats {
 
   phaseFrames?: PhaseFrameSample[];
 
-  _descendingFramesBuffer?: Array<{pose: PoseData, angles: Record<string, number>}>;
-  _ascendingFramesBuffer?: Array<{pose: PoseData, angles: Record<string, number>}>;
-  _perPhaseFrameBuffers?: Record<number, Array<{pose: PoseData, angles: Record<string, number>}>>;
+  _descendingFramesBuffer?: Array<{pose: PoseData, angles: Record<string, number>, spine?: CompactSpine}>;
+  _ascendingFramesBuffer?: Array<{pose: PoseData, angles: Record<string, number>, spine?: CompactSpine}>;
+  _perPhaseFrameBuffers?: Record<number, Array<{pose: PoseData, angles: Record<string, number>, spine?: CompactSpine}>>;
 }
 
 export interface AttemptLogEntry {

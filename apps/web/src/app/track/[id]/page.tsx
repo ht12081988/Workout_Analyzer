@@ -311,13 +311,16 @@ export default function TrackPage() {
           ];
 
       for (const frame of keyFrames) {
+        const landmarks = (frame as any).spine
+          ? { ...frame.landmarks, __spine: (frame as any).spine }
+          : frame.landmarks;
         await fetch(`${API_BASE_URL}/sessions/${sid}/frames`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             rep_id: attemptId, // Using attemptId as the universal movement key
             frame_number: frame.frameNumber,
-            landmarks: frame.landmarks,
+            landmarks,
             frame_type: frame.type,
             angles: Object.entries(frame.angles || {}).map(([name, value]) => ({ name, value }))
           })

@@ -47,6 +47,13 @@ interface Landmark {
 
 type PoseData = Record<string, Landmark>;
 
+interface CompactSpine {
+  c: number[];           // contourPoints [x0,y0,x1,y1,...]
+  n: number[];           // cervicalContourPoints [x0,y0,...]
+  d: number;             // curvatureDegrees
+  f: boolean;            // isFlexion
+}
+
 interface Frame {
   id: number;
   frame_type: 'start' | 'top' | 'end';
@@ -97,6 +104,7 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
   const [windowSize, setWindowSize] = useState({ width: 600, height: 400 });
   const currentLandmarksRef = useRef<PoseData>({});
   const currentAnglesRef = useRef<Record<string, number>>({});
+  const currentSpineRef = useRef<CompactSpine | undefined>(undefined);
   const showAnglesRef = useRef(showAngles);
   const currentAnimationRef = useRef<any>(null);
 
@@ -126,7 +134,7 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
       setIsFullscreen(!!document.fullscreenElement);
       // Give canvas time to resize
       setTimeout(() => {
-        drawSkeleton(currentLandmarksRef.current);
+        drawSkeleton(currentLandmarksRef.current, {}, undefined, currentSpineRef.current);
       }, 50);
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -137,7 +145,7 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
   const currentHeight = isFullscreen ? windowSize.height : height;
 
   useEffect(() => {
-    drawSkeleton(currentLandmarksRef.current);
+    drawSkeleton(currentLandmarksRef.current, {}, undefined, currentSpineRef.current);
   }, [currentWidth, currentHeight]);
 
   // Support N-frames dynamically
@@ -151,7 +159,7 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
     if (!frame || !frame.landmarks) {
       return {};
     }
-    
+
     let lms = frame.landmarks;
     while (typeof lms === 'string') {
       try {
@@ -160,9 +168,30 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
         return {};
       }
     }
-    
-    // Return the object dictionary
-    return typeof lms === 'object' && lms !== null ? lms : {};
+
+    // Strip __spine to prevent it from being treated as a landmark
+    if (typeof lms === 'object' && lms !== null) {
+      const { __spine, ...rest } = lms;
+      return rest;
+    }
+    return {};
+  };
+
+  const getParsedSpine = (frame: Frame | undefined): CompactSpine | undefined => {
+    if (!frame || !frame.landmarks) {
+      return undefined;
+    }
+
+    let lms = frame.landmarks;
+    while (typeof lms === 'string') {
+      try {
+        lms = JSON.parse(lms);
+      } catch(e) {
+        return undefined;
+      }
+    }
+
+    return typeof lms === 'object' && lms !== null ? lms.__spine : undefined;
   };
 
   // Initialization: Draw start frame immediately
@@ -170,11 +199,12 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
     const lms = getParsedLandmarks(startFrame);
     if (Object.keys(lms).length > 0) {
       currentLandmarksRef.current = JSON.parse(JSON.stringify(lms));
-      drawSkeleton(currentLandmarksRef.current, {});
+      currentSpineRef.current = getParsedSpine(startFrame);
+      drawSkeleton(currentLandmarksRef.current, {}, undefined, currentSpineRef.current);
     }
   }, [startFrame]);
 
-  const drawSkeleton = (landmarks: PoseData, angles: Record<string, number> = {}, timestampText?: string) => {
+  const drawSkeleton = (landmarks: PoseData, angles: Record<string, number> = {}, timestampText?: string, spine?: CompactSpine) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -358,6 +388,79 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
       }
     }
 
+    // Draw spine contours separately + interpolated vertebra dots in the gap
+    if (spine) {
+      const neckPts = [];
+      const cPts = [];
+
+      // Convert cervical points (magenta)
+      if (spine.n && spine.n.length > 0) {
+        for (let i = 0; i < spine.n.length; i += 2) {
+          neckPts.push(toCanvasCoords({ x: spine.n[i], y: spine.n[i + 1], z: 0, visibility: 1 }));
+        }
+      }
+
+      // Convert thoracic points (cyan)
+      if (spine.c && spine.c.length > 0) {
+        for (let i = 0; i < spine.c.length; i += 2) {
+          cPts.push(toCanvasCoords({ x: spine.c[i], y: spine.c[i + 1], z: 0, visibility: 1 }));
+        }
+      }
+
+      // Draw cervical contour curve (magenta)
+      if (neckPts.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(neckPts[0].x, neckPts[0].y);
+        if (neckPts.length === 2) {
+          ctx.lineTo(neckPts[1].x, neckPts[1].y);
+        } else {
+          for (let i = 0; i < neckPts.length - 1; i++) {
+            const xc = (neckPts[i].x + neckPts[i + 1].x) / 2;
+            const yc = (neckPts[i].y + neckPts[i + 1].y) / 2;
+            ctx.quadraticCurveTo(neckPts[i].x, neckPts[i].y, xc, yc);
+          }
+          ctx.lineTo(neckPts[neckPts.length - 1].x, neckPts[neckPts.length - 1].y);
+        }
+        ctx.strokeStyle = '#ec4899';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([4, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        neckPts.forEach((pt) => {
+          ctx.fillStyle = '#ec4899';
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 2.8, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+      }
+
+      // Draw thoracic contour curve (cyan)
+      if (cPts.length > 2) {
+        ctx.beginPath();
+        ctx.moveTo(cPts[0].x, cPts[0].y);
+        for (let i = 0; i < cPts.length - 1; i++) {
+          const xc = (cPts[i].x + cPts[i + 1].x) / 2;
+          const yc = (cPts[i].y + cPts[i + 1].y) / 2;
+          ctx.quadraticCurveTo(cPts[i].x, cPts[i].y, xc, yc);
+        }
+        ctx.lineTo(cPts[cPts.length - 1].x, cPts[cPts.length - 1].y);
+        ctx.strokeStyle = '#00f2fe';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([4, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        cPts.forEach((pt) => {
+          ctx.fillStyle = '#00f2fe';
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 2.8, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+      }
+
+    }
+
     // Draw Angles
     if (showAnglesRef.current && Object.keys(angles).length > 0) {
       ctx.font = 'bold 12px Inter, sans-serif';
@@ -533,6 +636,7 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
 
     // Initial state
     currentLandmarksRef.current = JSON.parse(JSON.stringify(getParsedLandmarks(sortedFrames[0])));
+    currentSpineRef.current = getParsedSpine(sortedFrames[0]);
 
     const toAngleMap = (frameNum: number) => {
       const arr = angles.filter(a => Number(a.frame_number) === Number(frameNum));
@@ -580,6 +684,36 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
       return result;
     };
 
+    const interpolateSpine = (startSpine: CompactSpine | undefined, endSpine: CompactSpine | undefined, progress: number): CompactSpine | undefined => {
+      // If no spine data, return undefined
+      if (!startSpine && !endSpine) return undefined;
+      if (!startSpine) return endSpine;
+      if (!endSpine) return startSpine;
+
+      // If point counts differ, use the nearest frame's spine
+      if (startSpine.c.length !== endSpine.c.length || startSpine.n.length !== endSpine.n.length) {
+        return progress < 0.5 ? startSpine : endSpine;
+      }
+
+      // Interpolate points and scalar values
+      const c: number[] = [];
+      for (let i = 0; i < startSpine.c.length; i++) {
+        c.push(startSpine.c[i] + (endSpine.c[i] - startSpine.c[i]) * progress);
+      }
+
+      const n: number[] = [];
+      for (let i = 0; i < startSpine.n.length; i++) {
+        n.push(startSpine.n[i] + (endSpine.n[i] - startSpine.n[i]) * progress);
+      }
+
+      return {
+        c,
+        n,
+        d: startSpine.d + (endSpine.d - startSpine.d) * progress,
+        f: progress < 0.5 ? startSpine.f : endSpine.f
+      };
+    };
+
     const formatMs = (ms: number) => {
       if (!ms) return '';
       const d = new Date(ms);
@@ -600,6 +734,8 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
 
       const currentLms = getParsedLandmarks(currentFrame);
       const nextLms = getParsedLandmarks(nextFrame);
+      const currentSpine = getParsedSpine(currentFrame);
+      const nextSpine = getParsedSpine(nextFrame);
       const currentAnglesMap = toAngleMap(currentFrame.frame_number);
       const nextAnglesMap = toAngleMap(nextFrame.frame_number);
 
@@ -619,14 +755,16 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
         onUpdate: (progress) => {
           const interpolated = interpolatePose(currentLms, nextLms, progress);
           const interpolatedAngles = interpolateAngles(currentAnglesMap, nextAnglesMap, progress);
+          const interpolatedSpine = interpolateSpine(currentSpine, nextSpine, progress);
           currentLandmarksRef.current = interpolated;
           currentAnglesRef.current = interpolatedAngles;
-          
+          currentSpineRef.current = interpolatedSpine;
+
           let currentMsDisplay;
           if (startMs && endMs) {
              currentMsDisplay = startMs + (endMs - startMs) * progress;
           }
-          drawSkeleton(interpolated, interpolatedAngles, currentMsDisplay ? formatMs(currentMsDisplay) : undefined);
+          drawSkeleton(interpolated, interpolatedAngles, currentMsDisplay ? formatMs(currentMsDisplay) : undefined, interpolatedSpine);
         }
       });
       currentAnimationRef.current = anim;
@@ -686,7 +824,7 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
   }, [autoPlay, startFrame, topFrame, endFrame, isPlaying]);
 
   useEffect(() => {
-    drawSkeleton(currentLandmarksRef.current, currentAnglesRef.current);
+    drawSkeleton(currentLandmarksRef.current, currentAnglesRef.current, undefined, currentSpineRef.current);
   }, [currentWidth, currentHeight, showAngles]);
 
   if (!startFrame) {
