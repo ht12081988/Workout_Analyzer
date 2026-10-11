@@ -54,7 +54,7 @@ export interface RepStats {
   endTime: string; // ISO string
   qualityScore: number;
   durationSeconds: number;
-  status: 'valid' | 'failed' | 'invalid';
+  status: 'valid' | 'failed' | 'invalid' | 'canceled';
   deviations: Array<{
     type: string;
     message: string;

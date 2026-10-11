@@ -267,7 +267,7 @@ export function extractBackContourPoints(
   const raySteps = 48; // Granular marching steps along the normal ray
 
   for (let s = 0; s < numStations; s++) {
-    const t = 0 + 1.0 * (s / (numStations - 1)); // Along spine from Hip (t=0) to Shoulder (t=1) - full coverage
+    const t = 1.0 - (s / (numStations - 1)); // Cranial to caudal: Shoulder (t=1) down to Hip (t=0)
     const axisX = hip.x + t * spineDx;
     const axisY = hip.y + t * spineDy;
 
@@ -368,7 +368,7 @@ export function extractCervicalContourPoints(
   const raySteps = 30;
 
   for (let s = 0; s < numStations; s++) {
-    const t = 0 + 1.0 * (s / (numStations - 1)); // From shoulder (t=0) to head (t=1) - full coverage
+    const t = 1.0 - (s / (numStations - 1)); // Cranial to caudal: Head/Occiput (t=1) down to Shoulder/C7 (t=0)
     const axisX = shoulder.x + t * neckDx;
     const axisY = shoulder.y + t * neckDy;
 
@@ -633,8 +633,15 @@ export function calculateSpineCurvature(
   const ny = -ux * facingDir;
 
   if (state.segmentationMask) {
-    contourPoints = extractBackContourPoints(state.segmentationMask, pose, facingDir);
-    cervicalContourPoints = extractCervicalContourPoints(state.segmentationMask, pose, facingDir);
+    if (Array.isArray(state.segmentationMask.contourPoints)) {
+      contourPoints = state.segmentationMask.contourPoints;
+      cervicalContourPoints = Array.isArray(state.segmentationMask.cervicalContourPoints)
+        ? state.segmentationMask.cervicalContourPoints
+        : [];
+    } else {
+      contourPoints = extractBackContourPoints(state.segmentationMask, pose, facingDir);
+      cervicalContourPoints = extractCervicalContourPoints(state.segmentationMask, pose, facingDir);
+    }
 
     if (contourPoints.length >= 4) {
       // Transform contour points into local spine coordinates (u = longitudinal axis, v = dorsal displacement)
@@ -677,27 +684,118 @@ export function calculateSpineCurvature(
     const dxTorso = (shoulder.x - hip.x) * facingDir;
     const dyTorso = Math.max(0.001, hip.y - shoulder.y);
     const pitchAngle = Math.atan2(dxTorso, dyTorso) * (180 / Math.PI);
-    const chordShorteningPct = Math.max(0, (1.0 - compressionRatio) * 100);
-    const angularDisplacement = Math.abs(pitchAngle);
-    curvatureDegrees = Math.round(Math.min(65, angularDisplacement * 0.7 + chordShorteningPct * 1.5));
+
+    if (isHorizontalTorso) {
+      curvatureDegrees = Math.round(Math.min(50, Math.abs(pitchAngle) * 0.85));
+    } else {
+      const chordShorteningPct = (state.baseTorsoHeight && state.baseTorsoHeight > 0.05)
+        ? Math.max(0, (1.0 - compressionRatio) * 100)
+        : 0;
+
+      let headDrop = 0;
+      const ear = pose['LEFT_EAR'] || pose['RIGHT_EAR'];
+      if (ear) {
+        const headDx = (ear.x - shoulder.x) * facingDir;
+        const headDy = Math.max(0.001, shoulder.y - ear.y);
+        const headPitch = Math.atan2(headDx, headDy) * (180 / Math.PI);
+        headDrop = Math.max(0, headPitch - pitchAngle);
+      }
+
+      const baselineCurvature = 14;
+      curvatureDegrees = Math.round(Math.min(55, baselineCurvature + (chordShorteningPct * 0.7) + (headDrop * 0.4)));
+      isFlexion = (pitchAngle >= 0) || (headDrop > 8) || (chordShorteningPct > 4);
+    }
   }
 
-  // 4. Generate 16 Smooth Spine Spline Points from Shoulder down to Hip for UI Overlays
+  // Base anatomical dorsal offset: posterior distance from glenohumeral / trochanter joint line
+  // to spinous processes (tightly calibrated: ~4.5% of torso length, clamped between 0.012 and 0.030)
+  const baseDorsalOffset = Math.max(0.012, Math.min(0.030, spineLen * 0.045));
+
+  // C7 Landmark: Cervicothoracic junction (common anchor for cervical and thoracic spine)
+  const c7Point = {
+    x: shoulder.x + nx * baseDorsalOffset,
+    y: shoulder.y + ny * baseDorsalOffset
+  };
+
+  // 4. Generate Cervical Contour Points (C1/Occiput down to C7)
+  if (cervicalContourPoints.length === 0) {
+    const lEar = pose['LEFT_EAR'];
+    const rEar = pose['RIGHT_EAR'];
+    const ear = (lEar && rEar) ? { x: (lEar.x + rEar.x) / 2, y: (lEar.y + rEar.y) / 2 } : (lEar || rEar);
+    const nose = pose['NOSE'];
+
+    // C1 (Occiput): base of skull, dorsal and inferior to ear
+    let occiputPoint = { x: c7Point.x + ux * (spineLen * 0.22), y: c7Point.y + uy * (spineLen * 0.22) };
+    if (ear) {
+      occiputPoint = {
+        x: ear.x + nx * (spineLen * 0.035) - facingDir * (spineLen * 0.006),
+        y: ear.y + (spineLen * 0.035)
+      };
+    } else if (nose) {
+      occiputPoint = {
+        x: nose.x + nx * (spineLen * 0.09),
+        y: nose.y + (spineLen * 0.04)
+      };
+    }
+
+    const neckDx = occiputPoint.x - c7Point.x;
+    const neckDy = occiputPoint.y - c7Point.y;
+    const neckLen = Math.max(0.01, Math.sqrt(neckDx * neckDx + neckDy * neckDy));
+    const unx = neckDx / neckLen;
+    const uny = neckDy / neckLen;
+    // Anterior normal (towards throat) for cervical lordosis
+    const lnx = -uny * facingDir;
+    const lny = unx * facingDir;
+
+    const numCervical = 8;
+    for (let i = 0; i < numCervical; i++) {
+      const t = 1.0 - (i / (numCervical - 1)); // t = 1.0 at Occiput (C1), t = 0.0 at C7
+      const baseX = c7Point.x + neckDx * t;
+      const baseY = c7Point.y + neckDy * t;
+      const lordosis = Math.sin(t * Math.PI) * (isFlexion ? -0.002 : 0.005) * Math.min(1.0, spineLen / 0.35);
+
+      cervicalContourPoints.push({
+        x: baseX + lnx * lordosis,
+        y: baseY + lny * lordosis
+      });
+    }
+  }
+
+  // 5. Generate Thoracic & Lumbar Spline Points (C7 down to Sacrum/S1)
   const splinePoints: Array<{ x: number; y: number }> = [];
   const numSteps = 16;
-  const arcMagnitude = (isFlexion ? 1 : -1) * (curvatureDegrees / 55) * 0.04;
+  // Realistic dynamic curvature: capped at ~2.5% of spine length to prevent ballooning
+  const dynamicFlex = (isFlexion ? 1 : -0.7) * (curvatureDegrees / 65) * (spineLen * 0.025);
 
   for (let i = 0; i <= numSteps; i++) {
-    const t = i / numSteps;
+    const t = i / numSteps; // t = 0 at C7, t = 1 at S1 (Sacrum)
     const baseX = shoulder.x + (hip.x - shoulder.x) * t;
     const baseY = shoulder.y + (hip.y - shoulder.y) * t;
 
-    // Normal vector offset along the true dorsal normal
-    const arcOffset = Math.sin(t * Math.PI) * arcMagnitude;
+    // Natural physiological curves:
+    // Thoracic Kyphosis: gentle outward curve along thoracic cage (T1-T12, t <= 0.65)
+    const kyphosis = (t <= 0.65)
+      ? Math.sin((t / 0.65) * Math.PI) * (spineLen * 0.016)
+      : 0;
+
+    // Lumbar Lordosis: gentle inward curve along small of the back (L1-L5, 0.60 < t < 0.98)
+    const lordosis = (t > 0.60 && t < 0.98)
+      ? Math.sin(((t - 0.60) / 0.38) * Math.PI) * (-spineLen * 0.012)
+      : 0;
+
+    // Active movement curvature
+    const movement = Math.sin(t * Math.PI) * dynamicFlex;
+
+    const totalOffset = baseDorsalOffset + kyphosis + lordosis + movement;
+
     splinePoints.push({
-      x: baseX + nx * arcOffset,
-      y: baseY + ny * arcOffset
+      x: baseX + nx * totalOffset,
+      y: baseY + ny * totalOffset
     });
+  }
+
+  if (contourPoints.length === 0) {
+    contourPoints = [...splinePoints];
   }
 
   const segmentalAngles = calculateSegmentalSpineAngles(
@@ -726,10 +824,12 @@ export function calculateSpineCurvature(
 export function compactSpine(spineData: SpineCurvatureResult | undefined): CompactSpine | undefined {
   if (!spineData) return undefined;
 
-  const contourPoints = spineData.contourPoints || [];
+  const contourPoints = (spineData.contourPoints && spineData.contourPoints.length > 0)
+    ? spineData.contourPoints
+    : (spineData.splinePoints || []);
   const cervicalContourPoints = spineData.cervicalContourPoints || [];
 
-  // Only compact if we have contour data
+  // Only compact if we have contour or spline data
   if (contourPoints.length === 0 && cervicalContourPoints.length === 0) {
     return undefined;
   }

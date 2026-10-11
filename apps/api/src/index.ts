@@ -17,6 +17,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Normalize /api prefix so requests like /api/exercises route to /exercises
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api/')) {
+    req.url = req.url.substring(4);
+  } else if (req.url === '/api') {
+    req.url = '/';
+  }
+  next();
+});
+
 app.get('/status', (req, res) => {
   res.json({ status: 'ok', message: 'Workout Analyzer API is running' });
 });

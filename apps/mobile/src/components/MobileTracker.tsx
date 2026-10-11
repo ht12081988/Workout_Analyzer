@@ -11,11 +11,12 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, VisionCameraProxy } from 'react-native-vision-camera';
-import { useRunOnJS } from 'react-native-worklets-core';
+import { useRunOnJS, useSharedValue } from 'react-native-worklets-core';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
-import { MovementEngine, PoseData, Landmark, ExerciseState, SpineCurvatureResult } from '@workout/shared';
+import Svg, { Circle, Path, Line as SvgLine } from 'react-native-svg';
+import { MovementEngine, PoseData, Landmark, ExerciseState, SpineCurvatureResult, compactSpine } from '@workout/shared';
 import { Spacing, Radii } from '../theme';
 import { useTheme } from '../ThemeContext';
 import { API_BASE_URL } from '../config';
@@ -75,30 +76,306 @@ const ALL_LANDMARKS = [
   "LEFT_FOOT_INDEX", "RIGHT_FOOT_INDEX"
 ];
 
-// Custom component to render skeleton lines without SVG
-const Line = ({ p1, p2, color }: { p1: { x: number, y: number }, p2: { x: number, y: number }, color: string }) => {
-  const dx = p2.x - p1.x;
-  const dy = p2.y - p1.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+// Helper to generate smooth quadratic Bezier SVG path from point array
+const buildSmoothSvgPath = (points: Array<{ x: number; y: number }>): string => {
+  if (points.length < 2) return '';
+  if (points.length === 2) {
+    return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)} ${points[1].y.toFixed(1)}`;
+  }
+  let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const xc = (points[i].x + points[i + 1].x) / 2;
+    const yc = (points[i].y + points[i + 1].y) / 2;
+    d += ` Q ${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)} ${xc.toFixed(1)} ${yc.toFixed(1)}`;
+  }
+  d += ` L ${points[points.length - 1].x.toFixed(1)} ${points[points.length - 1].y.toFixed(1)}`;
+  return d;
+};
+
+interface CircularHUDProps {
+  progressPct: number;
+  currentPhaseIndex: number;
+  totalPhases: number;
+  phaseName?: string;
+  size?: number;
+}
+
+const CircularPhaseHUD = React.memo(({ progressPct, currentPhaseIndex, totalPhases, size = 48 }: CircularHUDProps) => {
+  const strokeWidth = 3.5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clampedPct = Math.min(100, Math.max(0, progressPct));
+  const strokeDashoffset = circumference - (clampedPct / 100) * circumference;
+
+  const ringColor = clampedPct >= 90
+    ? '#10b981' // Emerald
+    : clampedPct >= 40
+      ? '#00f2fe' // Neon Cyan
+      : '#38bdf8'; // Sky Blue
+
+  const stageLabel = totalPhases > 0 ? `P${currentPhaseIndex + 1}` : 'REP';
 
   return (
-    <View style={{
-      position: 'absolute',
-      left: p1.x,
-      top: p1.y,
-      width: distance,
-      height: 3,
-      backgroundColor: color,
-      transform: [
-        { rotate: `${angle}deg` }
-      ],
-      transformOrigin: '0% 0%',
-      opacity: 0.75,
-      zIndex: 10,
-    }} />
+    <View style={[hudStyles.wrapper, { width: size, height: size, marginBottom: 6 }]} pointerEvents="none">
+      <View style={[hudStyles.circleBox, { width: size, height: size }]}>
+        <Svg width={size} height={size}>
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="rgba(0, 20, 43, 0.85)"
+          />
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="rgba(255, 255, 255, 0.12)"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={ringColor}
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            fill="transparent"
+          />
+        </Svg>
+        <View style={hudStyles.centerContent}>
+          <Text style={[hudStyles.pctText, { color: ringColor }]}>
+            {Math.round(clampedPct)}%
+          </Text>
+          <Text style={hudStyles.stageSub}>
+            {stageLabel}
+          </Text>
+        </View>
+      </View>
+    </View>
   );
-};
+});
+
+const hudStyles = StyleSheet.create({
+  wrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleBox: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centerContent: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pctText: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  stageSub: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 8.5,
+    fontWeight: '700',
+    marginTop: -1,
+  },
+});
+
+interface SkeletonOverlayViewProps {
+  isStarted: boolean;
+  pose: PoseData | null;
+  spineData: SpineCurvatureResult | null;
+  showSilhouette: boolean;
+  showAngles: boolean;
+  liveAngles: Record<string, number>;
+  layoutSize: { width: number; height: number };
+  cameraPosition: 'front' | 'back';
+  styles: any;
+}
+
+const SkeletonOverlayView = React.memo(({
+  isStarted,
+  pose,
+  spineData,
+  showSilhouette,
+  showAngles,
+  liveAngles,
+  layoutSize,
+  cameraPosition,
+  styles
+}: SkeletonOverlayViewProps) => {
+  if (!isStarted || !pose) return null;
+
+  const getScreenPoint = (landmark: Landmark) => {
+    const frameAspect = 16 / 9;
+    const viewAspect = layoutSize.height / layoutSize.width;
+
+    let videoWidth = layoutSize.width;
+    let videoHeight = layoutSize.height;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (viewAspect > frameAspect) {
+      videoHeight = layoutSize.height;
+      videoWidth = layoutSize.height / frameAspect;
+      offsetX = (videoWidth - layoutSize.width) / 2;
+    } else {
+      videoWidth = layoutSize.width;
+      videoHeight = layoutSize.width * frameAspect;
+      offsetY = (videoHeight - layoutSize.height) / 2;
+    }
+
+    let x = (landmark.x * videoWidth) - offsetX;
+    let y = (landmark.y * videoHeight) - offsetY;
+
+    if (cameraPosition === 'front') {
+      x = layoutSize.width - x;
+    }
+
+    return { x, y };
+  };
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg style={StyleSheet.absoluteFill}>
+        {/* Draw connection lines */}
+        {POSE_CONNECTIONS.map(([p1, p2], idx) => {
+          const start = pose[p1];
+          const end = pose[p2];
+          if (start && end && (start.visibility === undefined || start.visibility > 0.35) && (end.visibility === undefined || end.visibility > 0.35)) {
+            const pt1 = getScreenPoint(start);
+            const pt2 = getScreenPoint(end);
+            return (
+              <SvgLine
+                key={`bone-${idx}`}
+                x1={pt1.x}
+                y1={pt1.y}
+                x2={pt2.x}
+                y2={pt2.y}
+                stroke="#39FF14"
+                strokeWidth={2.6}
+                strokeLinecap="round"
+                opacity={0.85}
+              />
+            );
+          }
+          return null;
+        })}
+
+        {/* Draw joint circles */}
+        {ALL_LANDMARKS.map((name) => {
+          const landmark = pose[name];
+          if (landmark && (landmark.visibility === undefined || landmark.visibility > 0.35)) {
+            const pt = getScreenPoint(landmark);
+            const isCenter = name.startsWith('NOSE') || name.includes('MOUTH');
+            return (
+              <Circle
+                key={`joint-${name}`}
+                cx={pt.x}
+                cy={pt.y}
+                r={isCenter ? 4.5 : 5}
+                fill={isCenter ? '#ffffff' : '#39FF14'}
+                stroke="#ffffff"
+                strokeWidth={1.2}
+              />
+            );
+          }
+          return null;
+        })}
+
+        {/* Draw Cervical Spine Contour */}
+        {showSilhouette && spineData && spineData.cervicalContourPoints && spineData.cervicalContourPoints.length > 1 && (() => {
+          const neckPts = spineData.cervicalContourPoints.map((p: any) => getScreenPoint(p));
+          const pathD = buildSmoothSvgPath(neckPts);
+          return (
+            <React.Fragment key="cervical-spine-overlay">
+              <Path
+                d={pathD}
+                stroke="rgba(236, 72, 153, 0.95)"
+                strokeWidth={3}
+                strokeDasharray="6 4"
+                strokeLinecap="round"
+                fill="none"
+              />
+              {neckPts.map((pt: any, idx: number) => (
+                <Circle
+                  key={`cervical-vertebra-${idx}`}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={3.2}
+                  fill="#ec4899"
+                  stroke="#ffffff"
+                  strokeWidth={0.8}
+                />
+              ))}
+            </React.Fragment>
+          );
+        })()}
+
+        {/* Draw Thoracic & Lumbar Spine Contour */}
+        {showSilhouette && spineData && (spineData.contourPoints || spineData.splinePoints) && ((spineData.contourPoints || spineData.splinePoints)!.length > 1) && (() => {
+          const rawPts = spineData.contourPoints || spineData.splinePoints!;
+          const thoracicPts = rawPts.map((p: any) => getScreenPoint(p));
+          const pathD = buildSmoothSvgPath(thoracicPts);
+          return (
+            <React.Fragment key="thoracic-spine-overlay">
+              <Path
+                d={pathD}
+                stroke="rgba(0, 242, 254, 0.95)"
+                strokeWidth={3}
+                strokeDasharray="6 4"
+                strokeLinecap="round"
+                fill="none"
+              />
+              {thoracicPts.map((pt: any, idx: number) => (
+                <Circle
+                  key={`thoracic-vertebra-${idx}`}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={3.2}
+                  fill="#00f2fe"
+                  stroke="#ffffff"
+                  strokeWidth={0.8}
+                />
+              ))}
+            </React.Fragment>
+          );
+        })()}
+      </Svg>
+
+      {/* Live Joint Angle Badges when showAngles is true */}
+      {showAngles && (
+        <>
+          {pose['LEFT_KNEE'] && liveAngles['LEFT_KNEE_FLEXION'] !== undefined && (
+            <View style={[styles.anglePill, {
+              left: getScreenPoint(pose['LEFT_KNEE']).x - 26,
+              top: getScreenPoint(pose['LEFT_KNEE']).y - 12
+            }]}>
+              <Text style={styles.anglePillText}>
+                {Math.round(liveAngles['LEFT_KNEE_FLEXION'])}°
+              </Text>
+            </View>
+          )}
+          {pose['LEFT_HIP'] && liveAngles['LEFT_HIP_ABDUCTION'] !== undefined && liveAngles['LEFT_HIP_ABDUCTION'] > 5 && (
+            <View style={[styles.anglePill, {
+              left: getScreenPoint(pose['LEFT_HIP']).x - 42,
+              top: getScreenPoint(pose['LEFT_HIP']).y - 12
+            }]}>
+              <Text style={styles.anglePillText}>
+                ABD {Math.round(liveAngles['LEFT_HIP_ABDUCTION'])}°
+              </Text>
+            </View>
+          )}
+        </>
+      )}
+    </View>
+  );
+});
 
 export function MobileTracker({ exerciseType, mode = 'self', trainerId }: MobileTrackerProps) {
   const { colors, isDark } = useTheme();
@@ -130,6 +407,13 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
 
   const { speech, isVoiceEnabled, toggleVoice } = useVoiceGuide(exerciseId);
   const [enginePhase, setEnginePhase] = useState('INITIALIZING');
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
+  const [totalPhases, setTotalPhases] = useState(0);
+  const [progressPct, setProgressPct] = useState(0);
+  const [phaseName, setPhaseName] = useState('');
+  const [showAngles, setShowAngles] = useState(false);
+  const [showSilhouette, setShowSilhouette] = useState(false);
+  const [liveAngles, setLiveAngles] = useState<Record<string, number>>({});
 
   // Layout dimensions for rendering skeleton
   const [layoutSize, setLayoutSize] = useState({ width: 300, height: 500 });
@@ -145,6 +429,14 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
   const [fps, setFps] = useState(0);
   const frameCountRef = useRef(0);
   const lastFpsTimeRef = useRef(Date.now());
+
+  // Performance optimization refs to prevent redundant React re-renders on every frame
+  const lastRepCountRef = useRef(0);
+  const lastPhaseIndexRef = useRef(-1);
+  const lastProgressPctRef = useRef(-1);
+  const lastActiveCueRef = useRef<string | null>(null);
+  const lastAccuracyRef = useRef(100);
+  const lastPhaseNameRef = useRef('');
 
   // Request permissions
   useEffect(() => {
@@ -327,13 +619,16 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
           ];
 
       for (const frame of keyFrames) {
+        const landmarks = (frame as any).spine
+          ? { ...frame.landmarks, __spine: (frame as any).spine }
+          : frame.landmarks;
         await fetch(`${API_BASE_URL}/sessions/${sid}/frames`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             rep_id: attemptId,
             frame_number: frame.frameNumber,
-            landmarks: frame.landmarks,
+            landmarks,
             frame_type: frame.type,
             angles: Object.entries(frame.angles || {}).map(([name, value]) => ({ name, value }))
           })
@@ -378,104 +673,193 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
     }
   }, []);
 
+  // Point 2: In-flight frame dropper lock via worklet shared value
+  const isProcessing = useSharedValue(false);
+
   // Process incoming frame data
   const handlePose = useCallback((pose: PoseData) => {
-    // FPS tracking
-    frameCountRef.current += 1;
-    const now = Date.now();
-    if (now - lastFpsTimeRef.current >= 1000) {
-      setFps(Math.round((frameCountRef.current * 1000) / (now - lastFpsTimeRef.current)));
-      frameCountRef.current = 0;
-      lastFpsTimeRef.current = now;
-    }
-
-    if (layoutSize.width === 0 || layoutSize.height === 0) return;
-
-    setLastPose(pose);
-    const newState = engine.processFrame(pose);
-
-    setRepCount(newState.repCount);
-    setAccuracyScore(newState.accuracyScore);
-    setFeedback(newState.feedback);
-    setAttemptLog(newState.attemptLog);
-    setEnginePhase(newState.currentPhase);
-    setSpineData(newState.spineData || null);
-
-    // 1. Detect New Attempts
-    const latestAttempt = newState.attemptLog[0];
-    if (latestAttempt && latestAttempt.id !== lastAttemptIdRef.current) {
-      lastAttemptIdRef.current = latestAttempt.id;
-
-      const isSuccess = latestAttempt.status === 'success' || (latestAttempt as any).success === true;
-      if (isSuccess) {
-        speech.speakRepCount(newState.repCount, 100);
-      } else {
-        speech.speakFailure(latestAttempt.reason || 'deep');
+    try {
+      // FPS tracking
+      frameCountRef.current += 1;
+      const now = Date.now();
+      if (now - lastFpsTimeRef.current >= 1000) {
+        setFps(Math.round((frameCountRef.current * 1000) / (now - lastFpsTimeRef.current)));
+        frameCountRef.current = 0;
+        lastFpsTimeRef.current = now;
       }
 
-      logAttempt(latestAttempt).then(dbId => {
-        if (dbId) {
-          (latestAttempt as any).dbId = dbId;
+      if (layoutSize.width === 0 || layoutSize.height === 0) return;
 
-          const finishedStats = engine.getLastMovementStats();
-          if (finishedStats) {
-            const isMatch = (finishedStats.status === 'valid' ? latestAttempt.status === 'success' : latestAttempt.status === 'failed') &&
-              Math.abs(Date.now() - new Date(finishedStats.endTime).getTime()) < 5000;
-            if (isMatch) {
-              logMovementData(finishedStats, dbId);
+      // Always stream pose coordinates to the memoized SkeletonOverlay
+      setLastPose(pose);
+      const newState = engine.processFrame(pose);
+
+      // Point 3: Only trigger heavy React re-renders when workout values actually change
+      if (newState.repCount !== lastRepCountRef.current) {
+        lastRepCountRef.current = newState.repCount;
+        setRepCount(newState.repCount);
+      }
+      if (newState.accuracyScore !== lastAccuracyRef.current) {
+        lastAccuracyRef.current = newState.accuracyScore;
+        setAccuracyScore(newState.accuracyScore);
+      }
+      const currentActiveCue = newState.feedback[0] || null;
+      if (currentActiveCue !== lastActiveCueRef.current) {
+        lastActiveCueRef.current = currentActiveCue;
+        setFeedback(newState.feedback);
+      }
+      if (newState.currentPhase !== lastPhaseNameRef.current) {
+        lastPhaseNameRef.current = newState.currentPhase;
+        setEnginePhase(newState.currentPhase);
+        setPhaseName(newState.phaseName || newState.currentPhase);
+      }
+      const nextPhaseIdx = newState.currentPhaseIndex ?? 0;
+      if (nextPhaseIdx !== lastPhaseIndexRef.current) {
+        lastPhaseIndexRef.current = nextPhaseIdx;
+        setCurrentPhaseIndex(nextPhaseIdx);
+        setTotalPhases(newState.totalPhases ?? 0);
+      }
+      const newProgress = Math.round(newState.progressPct ?? 0);
+      if (Math.abs(newProgress - lastProgressPctRef.current) >= 1) {
+        lastProgressPctRef.current = newProgress;
+        setProgressPct(newProgress);
+      }
+      if (showSilhouette) {
+        setSpineData(newState.spineData || null);
+      }
+      if (showAngles && (newState as any).angles) {
+        setLiveAngles((newState as any).angles);
+      }
+
+      // 1. Detect New Attempts
+      const latestAttempt = newState.attemptLog[0];
+      if (latestAttempt && latestAttempt.id !== lastAttemptIdRef.current) {
+        lastAttemptIdRef.current = latestAttempt.id;
+        setAttemptLog(newState.attemptLog);
+
+        const isSuccess = latestAttempt.status === 'success' || (latestAttempt as any).success === true;
+        if (isSuccess) {
+          speech.speakRepCount(newState.repCount, latestAttempt.qualityScore || 100);
+        } else {
+          speech.speakFailure(latestAttempt.reason || 'deep');
+        }
+
+        logAttempt(latestAttempt).then(dbId => {
+          if (dbId) {
+            (latestAttempt as any).dbId = dbId;
+
+            const finishedStats = engine.getLastMovementStats();
+            if (finishedStats) {
+              const isMatch = (finishedStats.status === 'valid' ? latestAttempt.status === 'success' : latestAttempt.status === 'failed') &&
+                Math.abs(Date.now() - new Date(finishedStats.endTime).getTime()) < 5000;
+              if (isMatch) {
+                logMovementData(finishedStats, dbId);
+              }
             }
           }
+        });
+      }
+
+      // 2. Play ongoing live feedback (debounced by SpeechManager)
+      if (newState.feedback.length > 0) {
+        const activeCue = newState.feedback[0];
+        speech.speak(activeCue, false, newState.repCount);
+      }
+
+      // 3. Phase entry cue: fires once when transitioning into a new phase
+      if (newState.isStarted && newState.pendingEntryCue) {
+        speech.speak(newState.pendingEntryCue, true);
+      }
+
+      // 4. Detect Finished Movements
+      const currentStats = engine.getLastMovementStats();
+      if (currentStats && (currentStats as any).startTime !== lastFinishedMovementIdRef.current) {
+        lastFinishedMovementIdRef.current = (currentStats as any).startTime;
+
+        const matchingAttempt = newState.attemptLog.find(a =>
+          (currentStats.status === 'valid' ? a.status === 'success' : a.status === 'failed') &&
+          Math.abs(Date.now() - a.timestamp) < 5000
+        );
+
+        if (matchingAttempt && (matchingAttempt as any).dbId) {
+          logMovementData(currentStats, (matchingAttempt as any).dbId);
+        }
+      }
+    } finally {
+      // Release in-flight lock so next frame is immediately processed without queue backlog
+      isProcessing.value = false;
+    }
+  }, [engine, logAttempt, logMovementData, speech, showSilhouette, showAngles, layoutSize, isProcessing]);
+
+  // Abandon a half-done rep and reset to phase 0
+  const resetRep = () => {
+    if (!isStarted) return;
+    isProcessing.value = false;
+    const partial = engine.resetRep();
+    speech.speak('Rep reset. Return to start position.', true);
+
+    if (partial) {
+      lastAttemptIdRef.current = partial.attempt.id;
+      logAttempt(partial.attempt).then(dbId => {
+        if (dbId) {
+          (partial.attempt as any).dbId = dbId;
+          logMovementData(partial.stats, dbId);
         }
       });
     }
-
-    // 2. Play ongoing live feedback (debounced by SpeechManager)
-    if (newState.feedback.length > 0) {
-      const activeCue = newState.feedback[0];
-      speech.speak(activeCue, false, newState.repCount);
-    }
-
-    // 3. Detect Finished Movements
-    const currentStats = engine.getLastMovementStats();
-    if (currentStats && (currentStats as any).startTime !== lastFinishedMovementIdRef.current) {
-      lastFinishedMovementIdRef.current = (currentStats as any).startTime;
-
-      const matchingAttempt = newState.attemptLog.find(a =>
-        (currentStats.status === 'valid' ? a.status === 'success' : a.status === 'failed') &&
-        Math.abs(Date.now() - a.timestamp) < 5000
-      );
-
-      if (matchingAttempt && (matchingAttempt as any).dbId) {
-        logMovementData(currentStats, (matchingAttempt as any).dbId);
-      }
-    }
-  }, [engine, logAttempt, logMovementData, speech]);
+    const state = engine.getState();
+    lastRepCountRef.current = state.repCount;
+    lastPhaseIndexRef.current = state.currentPhaseIndex ?? 0;
+    lastProgressPctRef.current = state.progressPct ?? 0;
+    lastPhaseNameRef.current = state.currentPhase;
+    setAttemptLog(state.attemptLog);
+    setEnginePhase(state.currentPhase);
+    setCurrentPhaseIndex(state.currentPhaseIndex ?? 0);
+    setProgressPct(state.progressPct ?? 0);
+    setPhaseName(state.phaseName || state.currentPhase);
+  };
 
   // Clean up on component unmount
   useEffect(() => {
     return () => {
       engine.stop();
+      if (sessionIdRef.current) {
+        saveSession('completed');
+      }
     };
-  }, [engine]);
+  }, []);
 
   // Set up JS callback and frame processor
   const handlePoseJS = useRunOnJS(handlePose, [handlePose]);
 
   const frameProcessor = useFrameProcessor((frame) => {
     'worklet';
-    if (isStarted && detectPosePlugin != null) {
-      const pose = detectPosePlugin.call(frame);
-      if (pose != null) {
-        handlePoseJS(pose as unknown as PoseData);
-      }
+    if (!isStarted || detectPosePlugin == null) return;
+    if (isProcessing.value) {
+      // Drop frame to prevent queue backlog and lag
+      return;
     }
-  }, [isStarted, handlePoseJS]);
+    isProcessing.value = true;
+    const pose = detectPosePlugin.call(frame);
+    if (pose != null) {
+      handlePoseJS(pose as unknown as PoseData);
+    } else {
+      isProcessing.value = false;
+    }
+  }, [isStarted, handlePoseJS, isProcessing]);
 
   // Start the actual workout tracking session
   const startTracking = async () => {
     const sid = await saveSession('active');
     if (sid) {
       setSessionStartTime(Date.now());
+      isProcessing.value = false;
+      lastRepCountRef.current = 0;
+      lastPhaseIndexRef.current = -1;
+      lastProgressPctRef.current = -1;
+      lastActiveCueRef.current = null;
+      lastAccuracyRef.current = 100;
+      lastPhaseNameRef.current = '';
       engine.start();
       setIsStarted(true);
     } else {
@@ -508,40 +892,6 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
 
 
 
-  // Helper: map coordinate 0.0-1.0 to screen coordinates
-  const getScreenPoint = (landmark: Landmark) => {
-    // Standard camera frame aspect ratio is 16:9 (portrait)
-    const frameAspect = 16 / 9;
-    const viewAspect = layoutSize.height / layoutSize.width;
-
-    let videoWidth = layoutSize.width;
-    let videoHeight = layoutSize.height;
-    let offsetX = 0;
-    let offsetY = 0;
-
-    // Calculate dimensions to mimic resizeMode="cover"
-    if (viewAspect > frameAspect) {
-      // Screen is taller than the video frame (crop sides)
-      videoHeight = layoutSize.height;
-      videoWidth = layoutSize.height / frameAspect;
-      offsetX = (videoWidth - layoutSize.width) / 2;
-    } else {
-      // Screen is wider than the video frame (crop top/bottom)
-      videoWidth = layoutSize.width;
-      videoHeight = layoutSize.width * frameAspect;
-      offsetY = (videoHeight - layoutSize.height) / 2;
-    }
-
-    let x = (landmark.x * videoWidth) - offsetX;
-    let y = (landmark.y * videoHeight) - offsetY;
-
-    // In front camera mode, horizontal coordinates are mirrored
-    if (cameraPosition === 'front') {
-      x = layoutSize.width - x;
-    }
-
-    return { x, y };
-  };
 
   const onLayout = (e: any) => {
     const { width, height } = e.nativeEvent.layout;
@@ -577,72 +927,18 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
         frameProcessor={frameProcessor}
       />
 
-      {/* Skeleton / Pose Points Overlay */}
-      {isStarted && lastPose && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          {/* Draw connection lines */}
-          {POSE_CONNECTIONS.map(([p1, p2], idx) => {
-            const start = lastPose[p1];
-            const end = lastPose[p2];
-            if (start && end) {
-              return (
-                <Line
-                  key={`line-${idx}`}
-                  p1={getScreenPoint(start)}
-                  p2={getScreenPoint(end)}
-                  color="#39FF14"
-                />
-              );
-            }
-            return null;
-          })}
-
-          {/* Draw joint circles */}
-          {ALL_LANDMARKS.map((name) => {
-            const landmark = lastPose[name];
-            if (landmark) {
-              const pt = getScreenPoint(landmark);
-              return (
-                <View
-                  key={`joint-${name}`}
-                  style={[styles.jointDot, { left: pt.x - 7, top: pt.y - 7 }]}
-                />
-              );
-            }
-            return null;
-          })}
-
-          {/* Draw Cervical Neck Silhouette Contour */}
-          {spineData && spineData.cervicalContourPoints && spineData.cervicalContourPoints.length > 1 && (
-            spineData.cervicalContourPoints.slice(0, -1).map((pt: any, idx: number) => {
-              const nextPt = spineData.cervicalContourPoints![idx + 1];
-              return (
-                <Line
-                  key={`cervical-seg-${idx}`}
-                  p1={getScreenPoint(pt)}
-                  p2={getScreenPoint(nextPt)}
-                  color="#ec4899"
-                />
-              );
-            })
-          )}
-
-          {/* Draw Thoracic & Lumbar Silhouette Mask Contour */}
-          {spineData && spineData.contourPoints && spineData.contourPoints.length > 1 && (
-            spineData.contourPoints.slice(0, -1).map((pt: any, idx: number) => {
-              const nextPt = spineData.contourPoints![idx + 1];
-              return (
-                <Line
-                  key={`thoracic-contour-seg-${idx}`}
-                  p1={getScreenPoint(pt)}
-                  p2={getScreenPoint(nextPt)}
-                  color="#00f2fe"
-                />
-              );
-            })
-          )}
-        </View>
-      )}
+      {/* Skeleton / Pose Points Overlay (Memoized to prevent full UI re-renders) */}
+      <SkeletonOverlayView
+        isStarted={isStarted}
+        pose={lastPose}
+        spineData={spineData}
+        showSilhouette={showSilhouette}
+        showAngles={showAngles}
+        liveAngles={liveAngles}
+        layoutSize={layoutSize}
+        cameraPosition={cameraPosition}
+        styles={styles}
+      />
 
       {/* Countdown Overlay */}
       {countdown !== null && (
@@ -655,12 +951,14 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
       {/* HUD Controls / Details Overlay */}
       <View style={styles.overlay} pointerEvents="box-none">
 
-        {/* Title, FPS, and Play Button Row */}
+        {/* Title and FPS Row */}
         <View style={styles.titleRow} pointerEvents="box-none">
-          <View style={{ flexDirection: 'row', alignItems: 'center' }} pointerEvents="none">
-            <Text style={styles.titleText}>{exerciseType}</Text>
-            <View style={styles.fpsBadge}>
-              <Text style={styles.fpsText}>{fps} FPS</Text>
+          <View style={{ flex: 1, marginRight: 8 }} pointerEvents="none">
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <Text style={styles.titleText} numberOfLines={1}>{exerciseType}</Text>
+              <View style={styles.fpsBadge}>
+                <Text style={styles.fpsText}>{fps} FPS</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -681,8 +979,8 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
           </View>
         )}
 
-        {/* Latest Attempt Log Overlay */}
-        {attemptLog.length > 0 && (
+        {/* Latest Attempt Log Overlay (renders when not showing active live feedback) */}
+        {attemptLog.length > 0 && (!isStarted || feedback.length === 0) && (
           <View style={styles.logContainer} pointerEvents="box-none">
             {attemptLog.slice(0, 1).map((log, index) => {
               const attemptNumber = attemptLog.length;
@@ -702,27 +1000,26 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
           </View>
         )}
 
-        {/* Left Side Vertical Summary Stats and Controls (Only visible when started) */}
+        {/* Left Side: Circular Phase Progress HUD & Vertical Telemetry Stats */}
         {isStarted && (
-          <View style={styles.verticalStatsContainer} pointerEvents="box-none">
-            <View style={styles.leftButtonsContainer}>
-              <TouchableOpacity style={styles.leftControlBtn} onPress={() => toggleVoice(!isVoiceEnabled)}>
-                <MaterialIcons name={isVoiceEnabled ? "volume-up" : "volume-off"} size={24} color={isDark ? "white" : colors.onSurface} />
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.leftControlBtn, styles.btnPause]} onPress={handleToggleWorkout}>
-                <MaterialIcons name="stop" size={24} color="white" />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.leftStatsContainer} pointerEvents="box-none">
+            {/* Circular Phase HUD (0% P1) directly above Attempts */}
+            <CircularPhaseHUD
+              progressPct={progressPct}
+              currentPhaseIndex={currentPhaseIndex}
+              totalPhases={totalPhases}
+              size={48}
+            />
 
-            <View style={[styles.verticalStatCircle, { marginBottom: 10 }]}>
+            <View style={styles.verticalStatCircle}>
               <Text style={styles.verticalStatLabel}>ATTEMPTS</Text>
               <Text style={styles.verticalStatVal}>{attemptLog.length}</Text>
             </View>
-            <View style={[styles.verticalStatCircle, { marginBottom: 10 }]}>
+            <View style={styles.verticalStatCircle}>
               <Text style={styles.verticalStatLabel}>REPS</Text>
               <Text style={styles.verticalStatVal}>{repCount}</Text>
             </View>
-            <View style={[styles.verticalStatCircle, { marginBottom: 10 }]}>
+            <View style={styles.verticalStatCircle}>
               <Text style={styles.verticalStatLabel}>ACCURACY</Text>
               <Text style={styles.verticalStatVal}>{Math.round(accuracyScore)}%</Text>
             </View>
@@ -732,6 +1029,41 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
                 {Math.floor(seconds / 60)}:{(seconds % 60).toString().padStart(2, '0')}
               </Text>
             </View>
+          </View>
+        )}
+
+        {/* Right Side: 6 Action Controls Dock in a single vertical column centered under Circular HUD */}
+        {isStarted && (
+          <View style={styles.rightControlsContainer} pointerEvents="box-none">
+            {/* 1. Voice Guide Toggle */}
+            <TouchableOpacity style={styles.controlBtn} onPress={() => toggleVoice(!isVoiceEnabled)}>
+              <MaterialIcons name={isVoiceEnabled ? "volume-up" : "volume-off"} size={20} color={isDark ? "white" : colors.onSurface} />
+            </TouchableOpacity>
+
+            {/* 2. Camera Flip */}
+            <TouchableOpacity style={styles.controlBtn} onPress={() => setCameraPosition(p => p === 'front' ? 'back' : 'front')}>
+              <MaterialIcons name="flip-camera-ios" size={20} color="white" />
+            </TouchableOpacity>
+
+            {/* 3. Live Angles Toggle */}
+            <TouchableOpacity style={[styles.controlBtn, showAngles && styles.btnActive]} onPress={() => setShowAngles(!showAngles)}>
+              <MaterialIcons name="timeline" size={20} color={showAngles ? "#00f2fe" : "white"} />
+            </TouchableOpacity>
+
+            {/* 4. Skeleton / Spine Overlay Toggle */}
+            <TouchableOpacity style={[styles.controlBtn, showSilhouette && styles.btnActive]} onPress={() => setShowSilhouette(!showSilhouette)}>
+              <MaterialIcons name="accessibility" size={20} color={showSilhouette ? "#00f2fe" : "white"} />
+            </TouchableOpacity>
+
+            {/* 5. Reset Rep (Abandon) */}
+            <TouchableOpacity style={[styles.controlBtn, styles.btnWarn]} onPress={resetRep}>
+              <MaterialIcons name="replay" size={20} color="#f59e0b" />
+            </TouchableOpacity>
+
+            {/* 6. Stop Workout */}
+            <TouchableOpacity style={[styles.controlBtn, styles.btnPause]} onPress={handleToggleWorkout}>
+              <MaterialIcons name="stop" size={20} color="white" />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -830,18 +1162,45 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 50, // To clear the back button
+    marginLeft: 44, // To clear the back button
     justifyContent: 'space-between',
     zIndex: 10,
   },
   titleText: {
     color: 'white',
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginRight: 12,
+    marginRight: 6,
     textShadowColor: 'rgba(0,0,0,0.8)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 4,
+  },
+  phaseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  phaseSubtitle: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  anglePill: {
+    position: 'absolute',
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#39FF14',
+    zIndex: 30,
+  },
+  anglePillText: {
+    color: '#39FF14',
+    fontSize: 11,
+    fontWeight: '900',
   },
   fpsBadge: {
     backgroundColor: 'rgba(40,110,100,0.4)',
@@ -849,23 +1208,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
-  fpsText: {
-    color: '#39FF14',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  statsPlayBtn: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   topFeedbackContainer: {
-    marginTop: Spacing.md,
+    marginTop: Spacing.sm,
     alignItems: 'center',
     width: '100%',
     zIndex: 10,
@@ -873,14 +1217,18 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   feedbackToast: {
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.xl,
+    paddingVertical: 18,
+    minHeight: 84,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderRadius: 20,
-    width: '100%',
+    width: '92%',
+    maxWidth: 370,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 10,
   },
   feedbackSuccess: {
     backgroundColor: '#34A853', // Solid green from image
@@ -890,12 +1238,13 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   feedbackToastText: {
     color: 'white',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     textAlign: 'center',
+    lineHeight: 28,
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
   },
   logContainer: {
     marginTop: Spacing.sm,
@@ -909,14 +1258,16 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingVertical: 18,
+    minHeight: 84,
     borderRadius: 20,
-    width: '100%',
+    width: '92%',
+    maxWidth: 370,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 10,
   },
   logSuccessCard: {
     backgroundColor: '#34A853',
@@ -926,16 +1277,16 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   logCardTextNew: {
     color: 'white',
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
     flex: 1,
   },
   logBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 12,
     marginLeft: Spacing.sm,
   },
@@ -947,41 +1298,44 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   logBadgeText: {
     color: 'white',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: 'bold',
   },
-  verticalStatsContainer: {
+  leftStatsContainer: {
     position: 'absolute',
-    left: 20,
-    top: 360,
+    left: 14,
+    top: 295,
+    alignItems: 'center',
     flexDirection: 'column',
     zIndex: 100,
     elevation: 100,
   },
   verticalStatCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: isDark ? 'rgba(0, 20, 43, 0.85)' : 'rgba(255, 255, 255, 0.85)',
-    borderWidth: 1.5,
+    borderWidth: 1.2,
     borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: isDark ? 0.5 : 0.2,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDark ? 0.4 : 0.15,
+    shadowRadius: 4,
+    elevation: 5,
   },
   verticalStatLabel: {
     color: isDark ? 'rgba(255,255,255,0.6)' : colors.onSurfaceVariant,
-    fontSize: 8,
+    fontSize: 6.5,
     fontWeight: 'bold',
-    marginBottom: 2,
+    marginBottom: 1,
+    letterSpacing: 0.3,
   },
   verticalStatVal: {
     color: isDark ? 'white' : colors.onSurface,
-    fontSize: 18,
+    fontSize: 13.5,
     fontWeight: 'bold',
   },
   fpsText: {
@@ -1028,11 +1382,16 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     height: 24,
     backgroundColor: 'rgba(255,255,255,0.15)',
   },
-  leftButtonsContainer: {
+  rightControlsContainer: {
+    position: 'absolute',
+    right: 14,
+    top: 295,
+    width: 44,
+    alignItems: 'center',
     flexDirection: 'column',
     gap: 8,
-    alignItems: 'center',
-    marginBottom: 12,
+    zIndex: 100,
+    elevation: 100,
   },
   hudButton: {
     backgroundColor: 'rgba(0,20,43,0.75)',
@@ -1064,20 +1423,28 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-  leftControlBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  controlBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
     backgroundColor: isDark ? 'rgba(0, 20, 43, 0.85)' : 'rgba(255, 255, 255, 0.85)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: isDark ? 0.5 : 0.2,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  btnActive: {
+    borderColor: '#00f2fe',
+    backgroundColor: 'rgba(0, 242, 254, 0.2)',
+  },
+  btnWarn: {
+    borderColor: 'rgba(245, 158, 11, 0.5)',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
   },
   btnStart: {
     backgroundColor: isDark ? '#002855' : colors.primaryContainer,

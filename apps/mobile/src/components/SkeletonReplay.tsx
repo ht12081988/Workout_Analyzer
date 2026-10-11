@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, Dimensions, Text, TouchableOpacity } from 'react-native';
-import Svg, { Line, Circle } from 'react-native-svg';
+import Svg, { Line, Circle, Path } from 'react-native-svg';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Radii, Spacing } from '../theme';
 import { useTheme } from '../ThemeContext';
@@ -57,6 +57,7 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0); // This is now a "virtual" frame index
   const [isPlaying, setIsPlaying] = useState(true);
   const [interpolatedLandmarks, setInterpolatedLandmarks] = useState<PoseData | null>(null);
+  const [interpolatedSpine, setInterpolatedSpine] = useState<any>(undefined);
   const [currentTimestamp, setCurrentTimestamp] = useState<string>('');
   const [interpolatedAngles, setInterpolatedAngles] = useState<Record<string, number>>({});
   const [containerSize, setContainerSize] = useState({ width: Dimensions.get('window').width, height: 400 });
@@ -75,6 +76,16 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
       return rest;
     }
     return {};
+  };
+
+  // Parse __spine from frame landmarks
+  const getParsedSpine = (frame: FrameData | undefined): any => {
+    if (!frame || !frame.landmarks) return undefined;
+    let lms = frame.landmarks;
+    while (typeof lms === 'string') {
+      try { lms = JSON.parse(lms); } catch(e) { return undefined; }
+    }
+    return typeof lms === 'object' && lms !== null ? (lms as any).__spine : undefined;
   };
 
   // Helper to interpolate between two PoseData objects
@@ -109,6 +120,7 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
     // Reset to start if frames array changes
     setCurrentFrameIndex(0);
     setInterpolatedLandmarks(getParsedLandmarks(sortedFrames[0]));
+    setInterpolatedSpine(getParsedSpine(sortedFrames[0]));
     setIsPlaying(true);
   }, [frames]);
 
@@ -165,6 +177,27 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
 
           const interpolated = interpolatePose(currentLms, nextLms, progress);
           setInterpolatedLandmarks(interpolated);
+
+          // Interpolate Spine Contours
+          const currentSpine = getParsedSpine(prevRecordedFrame);
+          const nextSpine = getParsedSpine(nextRecordedFrame);
+          if (currentSpine && nextSpine && currentSpine.c && nextSpine.c && currentSpine.c.length === nextSpine.c.length) {
+            const interpC: number[] = [];
+            for (let i = 0; i < currentSpine.c.length; i++) {
+              interpC.push(currentSpine.c[i] + (nextSpine.c[i] - currentSpine.c[i]) * progress);
+            }
+            const interpN: number[] = [];
+            if (currentSpine.n && nextSpine.n && currentSpine.n.length === nextSpine.n.length) {
+              for (let i = 0; i < currentSpine.n.length; i++) {
+                interpN.push(currentSpine.n[i] + (nextSpine.n[i] - currentSpine.n[i]) * progress);
+              }
+            } else {
+              interpN.push(...(currentSpine.n || nextSpine.n || []));
+            }
+            setInterpolatedSpine({ c: interpC, n: interpN, d: currentSpine.d, f: currentSpine.f });
+          } else {
+            setInterpolatedSpine(currentSpine || nextSpine);
+          }
 
           // Interpolate Angles
           const interpAngles: Record<string, number> = {};
@@ -307,6 +340,85 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
             />
           );
         })}
+
+        {/* Draw Cervical & Thoracic Spine Curves if __spine data is present */}
+        {interpolatedSpine && (
+          <>
+            {/* Cervical Contour (Magenta) */}
+            {interpolatedSpine.n && interpolatedSpine.n.length > 2 && (
+              <Path
+                d={(() => {
+                  const n = interpolatedSpine.n;
+                  if (n.length < 4) return `M ${n[0]} ${n[1]}`;
+                  if (n.length === 4) return `M ${n[0]} ${n[1]} L ${n[2]} ${n[3]}`;
+                  let d = `M ${n[0]} ${n[1]}`;
+                  for (let i = 0; i < n.length - 2; i += 2) {
+                    const xc = (n[i] + n[i + 2]) / 2;
+                    const yc = (n[i + 1] + n[i + 3]) / 2;
+                    d += ` Q ${n[i]} ${n[i + 1]} ${xc} ${yc}`;
+                  }
+                  d += ` L ${n[n.length - 2]} ${n[n.length - 1]}`;
+                  return d;
+                })()}
+                stroke="#ec4899"
+                strokeWidth="0.012"
+                strokeDasharray="0.015 0.01"
+                strokeLinecap="round"
+                fill="transparent"
+              />
+            )}
+            {/* Cervical Vertebrae Dots */}
+            {interpolatedSpine.n && interpolatedSpine.n.map((_: number, idx: number) => {
+              if (idx % 2 !== 0) return null;
+              return (
+                <Circle
+                  key={`cervical-dot-${idx}`}
+                  cx={interpolatedSpine.n[idx]}
+                  cy={interpolatedSpine.n[idx + 1]}
+                  r="0.007"
+                  fill="#ec4899"
+                />
+              );
+            })}
+
+            {/* Thoracic Contour (Cyan) */}
+            {interpolatedSpine.c && interpolatedSpine.c.length > 2 && (
+              <Path
+                d={(() => {
+                  const c = interpolatedSpine.c;
+                  if (c.length < 4) return `M ${c[0]} ${c[1]}`;
+                  if (c.length === 4) return `M ${c[0]} ${c[1]} L ${c[2]} ${c[3]}`;
+                  let d = `M ${c[0]} ${c[1]}`;
+                  for (let i = 0; i < c.length - 2; i += 2) {
+                    const xc = (c[i] + c[i + 2]) / 2;
+                    const yc = (c[i + 1] + c[i + 3]) / 2;
+                    d += ` Q ${c[i]} ${c[i + 1]} ${xc} ${yc}`;
+                  }
+                  d += ` L ${c[c.length - 2]} ${c[c.length - 1]}`;
+                  return d;
+                })()}
+                stroke="#00f2fe"
+                strokeWidth="0.014"
+                strokeDasharray="0.015 0.01"
+                strokeLinecap="round"
+                fill="transparent"
+              />
+            )}
+            {/* Thoracic Vertebrae Dots */}
+            {interpolatedSpine.c && interpolatedSpine.c.map((_: number, idx: number) => {
+              if (idx % 2 !== 0) return null;
+              return (
+                <Circle
+                  key={`thoracic-dot-${idx}`}
+                  cx={interpolatedSpine.c[idx]}
+                  cy={interpolatedSpine.c[idx + 1]}
+                  r="0.007"
+                  fill="#00f2fe"
+                />
+              );
+            })}
+          </>
+        )}
 
       </Svg>
 

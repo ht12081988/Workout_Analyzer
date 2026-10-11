@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../ThemeContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MobileTracker } from '../components/MobileTracker';

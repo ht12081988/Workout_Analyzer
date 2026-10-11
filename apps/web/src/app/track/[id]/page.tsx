@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { WebcamTracker } from '../../../components/exercise/WebcamTracker';
 import { SkeletonOverlay } from '../../../components/exercise/SkeletonOverlay';
 import { MovementEngine, ExerciseState, PoseData, RepStats, SpeechManager } from '@workout/shared';
-import { ChevronLeft, Play, Square, AlertTriangle, Volume2, VolumeX, Maximize, Minimize, Activity, Zap, Layers } from 'lucide-react';
+import { ChevronLeft, Play, Square, RotateCcw, AlertTriangle, Volume2, VolumeX, Maximize, Minimize, Activity, Zap, Layers } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useRef, useEffect } from 'react';
 
@@ -518,6 +518,26 @@ export default function TrackPage() {
     }
   };
 
+  // Abandon a half-done rep (e.g. athlete too fatigued to meet the phase exit condition)
+  // and continue the same session from phase 0. Completed phases are saved as a 'canceled' attempt.
+  const resetRep = () => {
+    if (!state.isStarted) return;
+    const partial = engine.resetRep();
+    speech.speak('Rep reset. Return to start position.', true);
+
+    if (partial) {
+      // Mark as handled so handlePose doesn't re-log it or announce it as a failure
+      lastAttemptIdRef.current = partial.attempt.id;
+      logAttempt(partial.attempt).then(dbId => {
+        if (dbId) {
+          (partial.attempt as any).dbId = dbId;
+          logMovementData(partial.stats, dbId);
+        }
+      });
+    }
+    setState({ ...engine.getState() });
+  };
+
   const handleBack = () => {
     setShowConfirmBack(true);
   };
@@ -832,6 +852,17 @@ export default function TrackPage() {
             <div className="flex-1 overflow-hidden bg-white/[0.02] border border-white/10 rounded-[32px] flex flex-col shadow-2xl min-h-[350px] lg:h-full lg:min-h-0">
               <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/[0.01]">
                 <h3 className="font-black text-sm uppercase tracking-[0.2em] text-white/60">Attempt Log</h3>
+                <button
+                  onClick={resetRep}
+                  disabled={!state.isStarted}
+                  title={state.isStarted
+                    ? 'Abandon the current rep (completed phases are saved) and start the next rep'
+                    : 'Start the workout to enable rep reset'}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 bg-amber-500/10 text-amber-400 border-amber-500/40 hover:bg-amber-500/20 active:scale-95 disabled:bg-white/5 disabled:text-white/20 disabled:border-white/10 disabled:cursor-not-allowed disabled:active:scale-100"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Reset Rep
+                </button>
                 <div className="px-3 py-1 bg-white/5 rounded-full text-[10px] font-black text-white/40 uppercase tracking-widest">All Attempts</div>
               </div>
 

@@ -1,5 +1,5 @@
 import { IExerciseRule } from './MovementEngine';
-import { MovementPhase, PoseData, ExerciseState, AttemptLogEntry, POSE_LANDMARKS, SpineCurvatureResult } from './types';
+import { MovementPhase, PoseData, ExerciseState, AttemptLogEntry, POSE_LANDMARKS, SpineCurvatureResult, Landmark } from './types';
 import { calculateAngle, calculateSpineCurvature } from './angle-utils';
 
 export class DynamicRule implements IExerciseRule {
@@ -105,26 +105,85 @@ export class DynamicRule implements IExerciseRule {
         const lHip = pose[POSE_LANDMARKS.LEFT_HIP];
         const rHip = pose[POSE_LANDMARKS.RIGHT_HIP];
 
-        const shoulder = (rShoulder && (rShoulder.visibility || 0) > (lShoulder?.visibility || 0))
-          ? rShoulder
-          : (lShoulder || rShoulder);
+        const lShoulderVis = lShoulder?.visibility ?? (lShoulder ? 1 : 0);
+        const rShoulderVis = rShoulder?.visibility ?? (rShoulder ? 1 : 0);
+        const lHipVis = lHip?.visibility ?? (lHip ? 1 : 0);
+        const rHipVis = rHip?.visibility ?? (rHip ? 1 : 0);
 
-        const hip = (rHip && (rHip.visibility || 0) > (lHip?.visibility || 0))
-          ? rHip
-          : (lHip || rHip);
+        const hasLeft = Boolean(lShoulder && lHip && lShoulderVis > 0.35 && lHipVis > 0.35);
+        const hasRight = Boolean(rShoulder && rHip && rShoulderVis > 0.35 && rHipVis > 0.35);
 
-        if (shoulder && hip) {
-          // Angle with a true vertical drop from the hip
-          return calculateAngle(shoulder, hip, { x: hip.x, y: hip.y - 1.0 });
+        let shoulderPt: Landmark | { x: number; y: number } | null = null;
+        let hipPt: Landmark | { x: number; y: number } | null = null;
+
+        if (hasLeft && hasRight) {
+          // Frontal, rear, or 3/4 view: use anatomical midpoints of shoulders and hips
+          shoulderPt = {
+            x: (lShoulder!.x + rShoulder!.x) / 2,
+            y: (lShoulder!.y + rShoulder!.y) / 2
+          };
+          hipPt = {
+            x: (lHip!.x + rHip!.x) / 2,
+            y: (lHip!.y + rHip!.y) / 2
+          };
+        } else if (hasLeft && (!hasRight || (lShoulderVis + lHipVis >= rShoulderVis + rHipVis))) {
+          // Left side profile: use left shoulder and left hip
+          shoulderPt = lShoulder!;
+          hipPt = lHip!;
+        } else if (hasRight) {
+          // Right side profile: use right shoulder and right hip
+          shoulderPt = rShoulder!;
+          hipPt = rHip!;
+        } else {
+          // Sparse visibility fallback: strictly match ipsilateral side to avoid cross-body diagonal
+          const s = (rShoulder && rShoulderVis > lShoulderVis) ? rShoulder : (lShoulder || rShoulder);
+          const isLeft = s === lShoulder;
+          const h = isLeft ? (lHip || rHip) : (rHip || lHip);
+          if (s && h) {
+            shoulderPt = s;
+            hipPt = h;
+          }
+        }
+
+        if (shoulderPt && hipPt) {
+          // Angle with a true vertical line extending upward from the hip
+          return calculateAngle(shoulderPt as Landmark, hipPt as Landmark, { x: hipPt.x, y: hipPt.y - 1.0 });
         }
         return 0;
       }
       case 'BODY_ORIENTATION_ANGLE': {
-        const shoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER] || pose[POSE_LANDMARKS.RIGHT_SHOULDER];
-        const heel = pose[POSE_LANDMARKS.LEFT_HEEL] || pose[POSE_LANDMARKS.RIGHT_HEEL];
-        if (shoulder && heel) {
-          // Angle between the entire body (heel to shoulder) and a true vertical line
-          return calculateAngle(shoulder, heel, { x: heel.x, y: heel.y - 1.0 });
+        const lShoulder = pose[POSE_LANDMARKS.LEFT_SHOULDER];
+        const rShoulder = pose[POSE_LANDMARKS.RIGHT_SHOULDER];
+        const lHeel = pose[POSE_LANDMARKS.LEFT_HEEL] || pose[POSE_LANDMARKS.LEFT_ANKLE];
+        const rHeel = pose[POSE_LANDMARKS.RIGHT_HEEL] || pose[POSE_LANDMARKS.RIGHT_ANKLE];
+
+        const lVis = (lShoulder?.visibility ?? (lShoulder ? 1 : 0)) + (lHeel?.visibility ?? (lHeel ? 1 : 0));
+        const rVis = (rShoulder?.visibility ?? (rShoulder ? 1 : 0)) + (rHeel?.visibility ?? (rHeel ? 1 : 0));
+
+        let shoulderPt: Landmark | { x: number; y: number } | null = null;
+        let basePt: Landmark | { x: number; y: number } | null = null;
+
+        if (lShoulder && rShoulder && lHeel && rHeel) {
+          shoulderPt = { x: (lShoulder.x + rShoulder.x) / 2, y: (lShoulder.y + rShoulder.y) / 2 };
+          basePt = { x: (lHeel.x + rHeel.x) / 2, y: (lHeel.y + rHeel.y) / 2 };
+        } else if (lShoulder && lHeel && lVis >= rVis) {
+          shoulderPt = lShoulder;
+          basePt = lHeel;
+        } else if (rShoulder && rHeel) {
+          shoulderPt = rShoulder;
+          basePt = rHeel;
+        } else {
+          const s = lShoulder || rShoulder;
+          const b = lHeel || rHeel;
+          if (s && b) {
+            shoulderPt = s;
+            basePt = b;
+          }
+        }
+
+        if (shoulderPt && basePt) {
+          // Angle between the entire body (base to shoulder) and a true vertical line
+          return calculateAngle(shoulderPt as Landmark, basePt as Landmark, { x: basePt.x, y: basePt.y - 1.0 });
         }
         return 0;
       }

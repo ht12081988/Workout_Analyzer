@@ -37,6 +37,10 @@ export class MovementEngine {
   private lastMovementStats: RepStats | null = null;
   private minRepDurationSeconds: number = 0.8;
   private _lastRecordedPhaseIndex: number | undefined = undefined;
+  // After a manual rep reset, frames are ignored until this wall-clock time so the athlete
+  // can return to the start position before the rule re-calibrates its baseline.
+  private resumeAfterMs: number = 0;
+  private static readonly RESET_SETTLE_MS = 2000;
 
   constructor(exerciseName: string = 'Standing Calf Raise', rules?: any[]) {
     this.state = {
@@ -137,10 +141,107 @@ export class MovementEngine {
     this.state.isStarted = false;
     this.state.feedback = [];
     this.state.currentPhase = MovementPhase.INITIALIZING;
+    this.resumeAfterMs = 0;
+  }
+
+  /**
+   * Abandon the in-progress rep without ending the session (e.g. the athlete is fatigued and
+   * can't meet the current phase's exit conditions). If at least one phase was completed, the
+   * partial rep is returned as a 'canceled' attempt + stats so the caller can persist it.
+   * Canceled attempts are shown in the attempt log but don't count toward attemptCount/accuracy.
+   */
+  public resetRep(): { attempt: AttemptLogEntry; stats: RepStats } | null {
+    if (!this.state.isStarted) return null;
+
+    const now = Date.now();
+    const activeIndex = this.state.currentPhaseIndex ?? 0;
+    const meta = this.currentRepMetadata;
+    let partial: { attempt: AttemptLogEntry; stats: RepStats } | null = null;
+
+    if (meta && activeIndex > 0) {
+      const phaseNameOf = (i: number) =>
+        meta.phaseFrames?.find(f => f.phaseIndex === i + 1 && f.phaseName)?.phaseName || `Phase ${i + 1}`;
+      const completedNames = Array.from({ length: activeIndex }, (_, i) => phaseNameOf(i));
+      const currentName = this.state.phaseName || phaseNameOf(activeIndex);
+      const totalPhases = this.state.totalPhases ?? activeIndex + 1;
+      const reason = `Reset during "${currentName}" — completed ${activeIndex}/${totalPhases} phases (${completedNames.join(' → ')})`;
+
+      // Sample the unfinished phase the same way a completed phase is sampled, and close with its last frame
+      const buf = meta._perPhaseFrameBuffers?.[activeIndex] || [];
+      const last = buf[buf.length - 1];
+      if (buf.length > 0 && meta.phaseFrames) {
+        const idx1 = Math.floor(buf.length * 0.33);
+        const idx2 = Math.floor(buf.length * 0.66);
+        meta.phaseFrames.push(
+          {
+            type: `phase_${activeIndex + 1}_mid1`,
+            landmarks: buf[idx1].pose,
+            angles: buf[idx1].angles,
+            frameNumber: Math.max(1, meta.frameCount - Math.floor(buf.length * 0.67)),
+            phaseIndex: activeIndex + 1,
+            spine: buf[idx1].spine
+          },
+          {
+            type: `phase_${activeIndex + 1}_mid2`,
+            landmarks: buf[idx2].pose,
+            angles: buf[idx2].angles,
+            frameNumber: Math.max(1, meta.frameCount - Math.floor(buf.length * 0.33)),
+            phaseIndex: activeIndex + 1,
+            spine: buf[idx2].spine
+          },
+          {
+            type: 'rep_reset',
+            landmarks: last.pose,
+            angles: last.angles,
+            frameNumber: meta.frameCount,
+            spine: last.spine
+          }
+        );
+      }
+
+      const attempt: AttemptLogEntry = {
+        id: now.toString(),
+        timestamp: now,
+        status: 'canceled',
+        reason,
+        qualityScore: 0
+      };
+      const stats: RepStats = {
+        ...(meta as RepStats),
+        endTime: new Date(now).toISOString(),
+        qualityScore: 0,
+        durationSeconds: Math.max(0.1, (now - new Date(meta.startTime!).getTime()) / 1000),
+        status: 'canceled',
+        endFrameLandmarks: last?.pose || {},
+        endFrameAngles: last?.angles || {}
+      };
+
+      this.state.attemptLog = [attempt, ...this.state.attemptLog].slice(0, 500);
+      partial = { attempt, stats };
+    }
+
+    (this.rule as any).reset?.();
+    this.resetRepMetadata(now);
+    this.state.currentPhase = MovementPhase.START_POSITION;
+    this.state.currentPhaseIndex = 0;
+    this.state.phaseName = undefined;
+    this.state.progressPct = 0;
+    this.state.feedback = ['Return to start position'];
+    this.state.pendingEntryCue = undefined;
+    this.state.pendingPhaseCompletion = undefined;
+    this.resumeAfterMs = now + MovementEngine.RESET_SETTLE_MS;
+
+    return partial;
   }
 
   public processFrame(pose: PoseData, timeMs?: number, segmentationMask?: any): ExerciseState {
     if (!this.state.isStarted) return this.state;
+
+    if (this.resumeAfterMs > 0) {
+      if (Date.now() < this.resumeAfterMs) return { ...this.state };
+      this.resumeAfterMs = 0;
+      this.state.feedback = [];
+    }
 
     // Debugging: Log active rule once every 100 frames to avoid spam
     if (this.currentRepMetadata && this.currentRepMetadata.frameCount % 100 === 0) {
