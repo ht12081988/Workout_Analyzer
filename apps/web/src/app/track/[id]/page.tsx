@@ -151,6 +151,12 @@ export default function TrackPage() {
             setTrackingModel(data.tracking_model);
             console.log(`Setting tracking model to: ${data.tracking_model}`);
           }
+          // Default spine tracking to ON only for side-facing or spine-specific exercises
+          const isSpineExercise = 
+            data.category === 'Spine & Trunk' || 
+            data.camera_angle?.toUpperCase() === 'SIDE' ||
+            data.subcategory?.toLowerCase().includes('spine');
+          setShowSilhouette(Boolean(isSpineExercise));
         }
       } catch (err) {
         console.error('Failed to fetch exercise details', err);
@@ -311,7 +317,8 @@ export default function TrackPage() {
           ];
 
       for (const frame of keyFrames) {
-        const landmarks = (frame as any).spine
+        // Only attach __spine if the user had spine tracking enabled (showSilhouette = true)
+        const landmarks = (showSilhouette && (frame as any).spine)
           ? { ...frame.landmarks, __spine: (frame as any).spine }
           : frame.landmarks;
         await fetch(`${API_BASE_URL}/sessions/${sid}/frames`, {

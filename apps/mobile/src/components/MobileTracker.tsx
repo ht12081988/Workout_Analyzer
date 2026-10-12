@@ -480,6 +480,13 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
           setExerciseId(match.id);
           engine.setExercise(match.name);
 
+          // Default spine tracking to ON only for side-facing or spine-specific exercises
+          const isSpineExercise = 
+            match.category === 'Spine & Trunk' || 
+            match.camera_angle?.toUpperCase() === 'SIDE' ||
+            match.subcategory?.toLowerCase().includes('spine');
+          setShowSilhouette(Boolean(isSpineExercise));
+
           // Fetch custom rules using the appropriate mode
           let rulesUrl = `${API_BASE_URL}/exercises/${match.id}/rules?mode=${mode}&customer_id=${userId}`;
           if (mode === 'trainer' && trainerId) {
@@ -619,7 +626,8 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
           ];
 
       for (const frame of keyFrames) {
-        const landmarks = (frame as any).spine
+        // Only attach __spine if the user had spine tracking enabled (showSilhouette = true)
+        const landmarks = (showSilhouette && (frame as any).spine)
           ? { ...frame.landmarks, __spine: (frame as any).spine }
           : frame.landmarks;
         await fetch(`${API_BASE_URL}/sessions/${sid}/frames`, {
