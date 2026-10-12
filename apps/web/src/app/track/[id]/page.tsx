@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { WebcamTracker } from '../../../components/exercise/WebcamTracker';
 import { SkeletonOverlay } from '../../../components/exercise/SkeletonOverlay';
-import { MovementEngine, ExerciseState, PoseData, RepStats, SpeechManager } from '@workout/shared';
+import { MovementEngine, ExerciseState, PoseData, RepStats, SpeechManager, calculateSpineCurvature, compactSpine } from '@workout/shared';
 import { ChevronLeft, Play, Square, RotateCcw, AlertTriangle, Volume2, VolumeX, Maximize, Minimize, Activity, Zap, Layers } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useRef, useEffect } from 'react';
@@ -61,6 +61,12 @@ export default function TrackPage() {
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [showAngles, setShowAngles] = useState(true);
   const [showSilhouette, setShowSilhouette] = useState(false);
+  const showSilhouetteRef = useRef(showSilhouette);
+  const isSpineExerciseRef = useRef(false);
+
+  useEffect(() => {
+    showSilhouetteRef.current = showSilhouette;
+  }, [showSilhouette]);
 
   useEffect(() => {
     setIsVoiceEnabled(speech.getIsEnabled());
@@ -155,8 +161,11 @@ export default function TrackPage() {
           const isSpineExercise = 
             data.category === 'Spine & Trunk' || 
             data.camera_angle?.toUpperCase() === 'SIDE' ||
-            data.subcategory?.toLowerCase().includes('spine');
+            data.subcategory?.toLowerCase().includes('spine') ||
+            data.name?.toLowerCase().includes('spine');
+          isSpineExerciseRef.current = Boolean(isSpineExercise);
           setShowSilhouette(Boolean(isSpineExercise));
+          showSilhouetteRef.current = Boolean(isSpineExercise);
         }
       } catch (err) {
         console.error('Failed to fetch exercise details', err);
@@ -317,9 +326,20 @@ export default function TrackPage() {
           ];
 
       for (const frame of keyFrames) {
-        // Only attach __spine if the user had spine tracking enabled (showSilhouette = true)
-        const landmarks = (showSilhouette && (frame as any).spine)
-          ? { ...frame.landmarks, __spine: (frame as any).spine }
+        // Only attach __spine if the user had spine tracking enabled (showSilhouette = true) or it's a spine exercise
+        const shouldLogSpine = showSilhouetteRef.current || isSpineExerciseRef.current;
+        let spineData = (frame as any).spine;
+        if (!spineData && shouldLogSpine && frame.landmarks) {
+          try {
+            const calc = calculateSpineCurvature(frame.landmarks);
+            spineData = compactSpine(calc);
+          } catch (e) {
+            // fallback
+          }
+        }
+
+        const landmarks = (shouldLogSpine && spineData)
+          ? { ...frame.landmarks, __spine: spineData }
           : frame.landmarks;
         await fetch(`${API_BASE_URL}/sessions/${sid}/frames`, {
           method: 'POST',
@@ -617,7 +637,11 @@ export default function TrackPage() {
           </button>
 
           <button
-            onClick={() => setShowSilhouette(!showSilhouette)}
+            onClick={() => {
+              const next = !showSilhouette;
+              setShowSilhouette(next);
+              showSilhouetteRef.current = next;
+            }}
             className={`p-3.5 rounded-2xl border transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center flex-none hidden lg:flex ${
               showSilhouette
                 ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] hover:bg-cyan-500/20'
@@ -916,6 +940,26 @@ export default function TrackPage() {
             <Activity className={`w-5 h-5 ${showAngles ? 'text-cyan-400' : 'text-white/40'}`} />
             <span className={`uppercase tracking-widest text-[10px] font-black ${showAngles ? 'text-cyan-400' : 'text-white/40'}`}>
               {showAngles ? 'Angles On' : 'Angles Off'}
+            </span>
+          </div>
+        </button>
+
+        <button
+          onClick={() => {
+            const next = !showSilhouette;
+            setShowSilhouette(next);
+            showSilhouetteRef.current = next;
+          }}
+          className={`p-4 rounded-2xl border transition-all duration-300 active:scale-95 flex items-center justify-center flex-1 ${
+            showSilhouette
+              ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+              : 'bg-white/5 text-white/40 border-white/10'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <SpineIcon className={`w-5 h-5 ${showSilhouette ? 'text-cyan-400' : 'text-white/40'}`} />
+            <span className={`uppercase tracking-widest text-[10px] font-black ${showSilhouette ? 'text-cyan-400' : 'text-white/40'}`}>
+              {showSilhouette ? 'Spine On' : 'Spine Off'}
             </span>
           </div>
         </button>

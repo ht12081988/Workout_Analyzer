@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
 import Svg, { Circle, Path, Line as SvgLine } from 'react-native-svg';
-import { MovementEngine, PoseData, Landmark, ExerciseState, SpineCurvatureResult, compactSpine } from '@workout/shared';
+import { MovementEngine, PoseData, Landmark, ExerciseState, SpineCurvatureResult, compactSpine, calculateSpineCurvature } from '@workout/shared';
 import { Spacing, Radii } from '../theme';
 import { useTheme } from '../ThemeContext';
 import { API_BASE_URL } from '../config';
@@ -413,6 +413,12 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
   const [phaseName, setPhaseName] = useState('');
   const [showAngles, setShowAngles] = useState(false);
   const [showSilhouette, setShowSilhouette] = useState(false);
+  const showSilhouetteRef = useRef(showSilhouette);
+  const isSpineExerciseRef = useRef(false);
+
+  useEffect(() => {
+    showSilhouetteRef.current = showSilhouette;
+  }, [showSilhouette]);
   const [liveAngles, setLiveAngles] = useState<Record<string, number>>({});
 
   // Layout dimensions for rendering skeleton
@@ -484,8 +490,11 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
           const isSpineExercise = 
             match.category === 'Spine & Trunk' || 
             match.camera_angle?.toUpperCase() === 'SIDE' ||
-            match.subcategory?.toLowerCase().includes('spine');
+            match.subcategory?.toLowerCase().includes('spine') ||
+            match.name?.toLowerCase().includes('spine');
+          isSpineExerciseRef.current = Boolean(isSpineExercise);
           setShowSilhouette(Boolean(isSpineExercise));
+          showSilhouetteRef.current = Boolean(isSpineExercise);
 
           // Fetch custom rules using the appropriate mode
           let rulesUrl = `${API_BASE_URL}/exercises/${match.id}/rules?mode=${mode}&customer_id=${userId}`;
@@ -626,9 +635,18 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
           ];
 
       for (const frame of keyFrames) {
-        // Only attach __spine if the user had spine tracking enabled (showSilhouette = true)
-        const landmarks = (showSilhouette && (frame as any).spine)
-          ? { ...frame.landmarks, __spine: (frame as any).spine }
+        // Only attach __spine if the user had spine tracking enabled (showSilhouette = true) or it's a spine exercise
+        const shouldLogSpine = showSilhouetteRef.current || isSpineExerciseRef.current;
+        let spineData = (frame as any).spine;
+        if (!spineData && shouldLogSpine && frame.landmarks) {
+          try {
+            const calc = calculateSpineCurvature(frame.landmarks);
+            spineData = compactSpine(calc);
+          } catch (e) {}
+        }
+
+        const landmarks = (shouldLogSpine && spineData)
+          ? { ...frame.landmarks, __spine: spineData }
           : frame.landmarks;
         await fetch(`${API_BASE_URL}/sessions/${sid}/frames`, {
           method: 'POST',
@@ -1059,7 +1077,11 @@ export function MobileTracker({ exerciseType, mode = 'self', trainerId }: Mobile
             </TouchableOpacity>
 
             {/* 4. Skeleton / Spine Overlay Toggle */}
-            <TouchableOpacity style={[styles.controlBtn, showSilhouette && styles.btnActive]} onPress={() => setShowSilhouette(!showSilhouette)}>
+            <TouchableOpacity style={[styles.controlBtn, showSilhouette && styles.btnActive]} onPress={() => {
+              const next = !showSilhouette;
+              setShowSilhouette(next);
+              showSilhouetteRef.current = next;
+            }}>
               <MaterialIcons name="accessibility" size={20} color={showSilhouette ? "#00f2fe" : "white"} />
             </TouchableOpacity>
 

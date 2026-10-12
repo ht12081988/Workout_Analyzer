@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { animate } from 'framer-motion';
+import { calculateSpineCurvature, compactSpine } from '@workout/shared';
 
 const POSE_CONNECTIONS = [
   ['LEFT_SHOULDER', 'RIGHT_SHOULDER'],
@@ -191,7 +192,30 @@ export const SkeletonReplay: React.FC<SkeletonReplayProps> = ({
       }
     }
 
-    return typeof lms === 'object' && lms !== null ? lms.__spine : undefined;
+    if (typeof lms === 'object' && lms !== null) {
+      if (lms.__spine) {
+        return lms.__spine;
+      }
+
+      // Fallback: If this is a spine exercise or landmarks exist, compute spine dynamically on the fly
+      const isSpineEx = exerciseName?.toLowerCase().includes('spine') ||
+                        exerciseName?.toLowerCase().includes('flexion') ||
+                        exerciseName?.toLowerCase().includes('extension') ||
+                        exerciseName?.toLowerCase().includes('trunk') ||
+                        exerciseName?.toLowerCase().includes('posture');
+
+      if (isSpineEx) {
+        try {
+          const { __spine, ...cleanLms } = lms;
+          const spineCalc = calculateSpineCurvature(cleanLms);
+          return compactSpine(spineCalc);
+        } catch (e) {
+          console.warn('Failed fallback spine calculation:', e);
+        }
+      }
+    }
+
+    return undefined;
   };
 
   // Initialization: Draw start frame immediately

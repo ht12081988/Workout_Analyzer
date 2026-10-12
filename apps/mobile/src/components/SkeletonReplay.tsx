@@ -4,6 +4,7 @@ import Svg, { Line, Circle, Path } from 'react-native-svg';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Radii, Spacing } from '../theme';
 import { useTheme } from '../ThemeContext';
+import { calculateSpineCurvature, compactSpine } from '@workout/shared';
 
 interface FrameData {
   frame_number: number;
@@ -85,7 +86,26 @@ export function SkeletonReplay({ frames, angles = [], attemptText, feedback, exe
     while (typeof lms === 'string') {
       try { lms = JSON.parse(lms); } catch(e) { return undefined; }
     }
-    return typeof lms === 'object' && lms !== null ? (lms as any).__spine : undefined;
+    if (typeof lms === 'object' && lms !== null) {
+      if ((lms as any).__spine) return (lms as any).__spine;
+
+      const isSpineEx = exerciseName?.toLowerCase().includes('spine') ||
+                        exerciseName?.toLowerCase().includes('flexion') ||
+                        exerciseName?.toLowerCase().includes('extension') ||
+                        exerciseName?.toLowerCase().includes('trunk') ||
+                        exerciseName?.toLowerCase().includes('posture');
+
+      if (isSpineEx) {
+        try {
+          const { __spine, ...cleanLms } = lms as any;
+          const spineCalc = calculateSpineCurvature(cleanLms);
+          return compactSpine(spineCalc);
+        } catch (e) {
+          // fallback
+        }
+      }
+    }
+    return undefined;
   };
 
   // Helper to interpolate between two PoseData objects
