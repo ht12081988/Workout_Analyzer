@@ -27,6 +27,12 @@ export class DynamicRule implements IExerciseRule {
   private lastTimeMs: number = 0;
   private previousHipY: number | null = null;
   private phase0CueEmitted: boolean = false;
+  private initialHipY: number | null = null;
+  private groundBaselineY: number | null = null;
+  private peakJumpHeightThisRep: number = 0;
+  private takeoffTimestampMs: number | null = null;
+  private flightTimeMs: number = 0;
+  private isAirborneThisRep: boolean = false;
   
   public setRules(rules: any[]): void {
     this.rules = rules;
@@ -54,6 +60,12 @@ export class DynamicRule implements IExerciseRule {
     this.previousPose = null;
     this.lastTimeMs = 0;
     this.previousHipY = null;
+    this.initialHipY = null;
+    this.groundBaselineY = null;
+    this.peakJumpHeightThisRep = 0;
+    this.takeoffTimestampMs = null;
+    this.flightTimeMs = 0;
+    this.isAirborneThisRep = false;
   }
 
   // Helper to calculate any metric from the Master Metrics Library
@@ -1376,6 +1388,29 @@ export class DynamicRule implements IExerciseRule {
         }
         return 1.0;
       }
+      case 'VERTICAL_JUMP_HEIGHT': {
+        const initialHipY = state.initialHipY ?? null;
+        const baseTorsoHeight = state.baseTorsoHeight ?? null;
+        if (initialHipY === null || !baseTorsoHeight || baseTorsoHeight <= 0.05) {
+          return Math.round((state.peakJumpHeightThisRep ?? 0) * 10) / 10;
+        }
+
+        const lHip = pose[POSE_LANDMARKS.LEFT_HIP] || pose['LEFT_HIP'];
+        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP] || pose['RIGHT_HIP'];
+        if (!lHip && !rHip) {
+          return Math.round((state.peakJumpHeightThisRep ?? 0) * 10) / 10;
+        }
+
+        const currentHipY = (lHip && rHip) ? (lHip.y + rHip.y) / 2 : (lHip ? lHip.y : rHip!.y);
+        // Standard adult human torso height (shoulder to hip) is ~52cm
+        const cmPerPixel = 52.0 / baseTorsoHeight;
+        const liveHeightCm = Math.max(0, (initialHipY - currentHipY) * cmPerPixel);
+        const peakHeightCm = Math.max(liveHeightCm, state.peakJumpHeightThisRep ?? 0);
+        return Math.round(peakHeightCm * 10) / 10;
+      }
+      case 'JUMP_FLIGHT_TIME': {
+        return Math.round(state.flightTimeMs ?? 0);
+      }
       default:
         return 0;
     }
@@ -1644,6 +1679,7 @@ export class DynamicRule implements IExerciseRule {
           
           this.baseTorsoHeight = Math.abs(hipY - shoulderY);
           this.initialHipX = hipX;
+          this.initialHipY = hipY;
           this.initialHeelTilt = null;
           this.initialLeftHeelTilt = null;
           this.initialRightHeelTilt = null;
@@ -1652,6 +1688,15 @@ export class DynamicRule implements IExerciseRule {
           const rHeel = pose[POSE_LANDMARKS.RIGHT_HEEL];
           const lFoot = pose[POSE_LANDMARKS.LEFT_FOOT_INDEX];
           const rFoot = pose[POSE_LANDMARKS.RIGHT_FOOT_INDEX];
+
+          const groundCandidates: number[] = [];
+          if (lHeel) groundCandidates.push(lHeel.y);
+          if (rHeel) groundCandidates.push(rHeel.y);
+          if (lFoot) groundCandidates.push(lFoot.y);
+          if (rFoot) groundCandidates.push(rFoot.y);
+          if (groundCandidates.length > 0) {
+            this.groundBaselineY = Math.max(...groundCandidates);
+          }
 
           let tilts: number[] = [];
           if (lHeel && lFoot && this.baseTorsoHeight) {
@@ -1695,6 +1740,55 @@ export class DynamicRule implements IExerciseRule {
       this.phase0CueEmitted = true;
     }
 
+    // Track dynamic jump metrics if calibrated
+    if (this.initialHipY !== null && this.baseTorsoHeight && this.baseTorsoHeight > 0.05) {
+      const lHip = pose[POSE_LANDMARKS.LEFT_HIP];
+      const rHip = pose[POSE_LANDMARKS.RIGHT_HIP];
+      if (lHip || rHip) {
+        const curHipY = (lHip && rHip) ? (lHip.y + rHip.y) / 2 : (lHip ? lHip.y : rHip!.y);
+        const cmPerPixel = 52.0 / this.baseTorsoHeight;
+        const liveJumpHeight = Math.max(0, (this.initialHipY - curHipY) * cmPerPixel);
+        if (liveJumpHeight > this.peakJumpHeightThisRep) {
+          this.peakJumpHeightThisRep = liveJumpHeight;
+        }
+      }
+
+      if (this.groundBaselineY !== null) {
+        const lHeel = pose[POSE_LANDMARKS.LEFT_HEEL];
+        const rHeel = pose[POSE_LANDMARKS.RIGHT_HEEL];
+        const lFoot = pose[POSE_LANDMARKS.LEFT_FOOT_INDEX];
+        const rFoot = pose[POSE_LANDMARKS.RIGHT_FOOT_INDEX];
+        const feetY: number[] = [];
+        if (lHeel) feetY.push(lHeel.y);
+        if (rHeel) feetY.push(rHeel.y);
+        if (lFoot) feetY.push(lFoot.y);
+        if (rFoot) feetY.push(rFoot.y);
+
+        if (feetY.length > 0) {
+          const lowestFootY = Math.max(...feetY);
+          const isOffGround = lowestFootY < (this.groundBaselineY - 0.035);
+          const currentTime = timeMs || Date.now();
+
+          if (isOffGround) {
+            if (!this.isAirborneThisRep) {
+              this.isAirborneThisRep = true;
+              this.takeoffTimestampMs = currentTime;
+            } else if (this.takeoffTimestampMs) {
+              const currentFlight = currentTime - this.takeoffTimestampMs;
+              if (currentFlight > this.flightTimeMs) {
+                this.flightTimeMs = currentFlight;
+              }
+            }
+          } else {
+            if (this.isAirborneThisRep && this.takeoffTimestampMs) {
+              this.flightTimeMs = Math.max(this.flightTimeMs, currentTime - this.takeoffTimestampMs);
+              this.isAirborneThisRep = false;
+            }
+          }
+        }
+      }
+    }
+
     // Evaluate all metrics
     for (const metricId of usedMetrics) {
       // Convert metric ID (e.g., HEEL_RAISE_TILT) to camelCase (e.g., heelRaiseTilt) for the frontend charts
@@ -1705,6 +1799,10 @@ export class DynamicRule implements IExerciseRule {
         initialLeftHeelTilt: this.initialLeftHeelTilt,
         initialRightHeelTilt: this.initialRightHeelTilt,
         initialHipX: this.initialHipX,
+        initialHipY: this.initialHipY,
+        groundBaselineY: this.groundBaselineY,
+        peakJumpHeightThisRep: this.peakJumpHeightThisRep,
+        flightTimeMs: this.flightTimeMs,
         previousPose: this.previousPose,
         previousHipY: this.previousHipY,
         lastTimeMs: this.lastTimeMs,
@@ -1723,6 +1821,10 @@ export class DynamicRule implements IExerciseRule {
           initialLeftHeelTilt: this.initialLeftHeelTilt,
           initialRightHeelTilt: this.initialRightHeelTilt,
           initialHipX: this.initialHipX,
+          initialHipY: this.initialHipY,
+          groundBaselineY: this.groundBaselineY,
+          peakJumpHeightThisRep: this.peakJumpHeightThisRep,
+          flightTimeMs: this.flightTimeMs,
           previousPose: this.previousPose,
           previousHipY: this.previousHipY,
           lastTimeMs: this.lastTimeMs,
@@ -1764,6 +1866,10 @@ export class DynamicRule implements IExerciseRule {
           initialLeftHeelTilt: this.initialLeftHeelTilt,
           initialRightHeelTilt: this.initialRightHeelTilt,
           initialHipX: this.initialHipX,
+          initialHipY: this.initialHipY,
+          groundBaselineY: this.groundBaselineY,
+          peakJumpHeightThisRep: this.peakJumpHeightThisRep,
+          flightTimeMs: this.flightTimeMs,
           previousPose: this.previousPose,
           previousHipY: this.previousHipY,
           lastTimeMs: this.lastTimeMs,
@@ -1797,6 +1903,10 @@ export class DynamicRule implements IExerciseRule {
             this.isRepCalibrated = false; // Reset calibration for next rep
             this.consecutiveFailures.clear(); // Reset failure counters for next rep
             this.phase0CueEmitted = false; // Reset setup cue for next rep
+            this.peakJumpHeightThisRep = 0;
+            this.takeoffTimestampMs = null;
+            this.flightTimeMs = 0;
+            this.isAirborneThisRep = false;
             
             if (!isRepCompleted) {
               newAttempt = {

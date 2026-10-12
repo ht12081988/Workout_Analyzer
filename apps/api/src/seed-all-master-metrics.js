@@ -1416,6 +1416,37 @@ const ALL_MASTER_METRICS = [
           '• Beginner: Sweep >= 140°.\n' +
           '• Intermediate: Sweep >= 165°.\n' +
           '• Advanced: Sweep >= 175°.'
+  },
+  // ==========================================
+  // 10. ATHLETIC PERFORMANCE & JUMP DYNAMICS
+  // ==========================================
+  {
+    key: 'VERTICAL_JUMP_HEIGHT',
+    name: 'Vertical Jump Height',
+    category: 'Athletic Performance',
+    min: 0,
+    max: 120,
+    step: 1,
+    default_val: 35,
+    dir: 'asc',
+    desc: 'Peak vertical displacement of hips/center of mass above standing baseline in centimeters.\n\n' +
+          '• Beginner / Assessment: >= 20 cm.\n' +
+          '• Intermediate / Functional Range: >= 35 cm.\n' +
+          '• Advanced / Athletic Capacity: >= 50 cm.'
+  },
+  {
+    key: 'JUMP_FLIGHT_TIME',
+    name: 'Jump Flight Time',
+    category: 'Athletic Performance',
+    min: 0,
+    max: 1500,
+    step: 10,
+    default_val: 500,
+    dir: 'asc',
+    desc: 'Airborne flight duration in milliseconds between foot takeoff and touchdown.\n\n' +
+          '• Beginner: >= 350 ms (~15 cm jump).\n' +
+          '• Intermediate: >= 535 ms (~35 cm jump).\n' +
+          '• Advanced: >= 640 ms (~50 cm jump).'
   }
 ];
 

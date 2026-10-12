@@ -877,6 +877,9 @@ export default function SessionDetailPage() {
                   {chartGroups.length > 0 ? (
                     chartGroups.map((group, gIdx) => {
                       const isRhythm = group.name === 'Movement Rhythm';
+                      const isHeight = group.name.toLowerCase().includes('height') || group.name.toLowerCase().includes('jump');
+                      const isFlightTime = group.name.toLowerCase().includes('flight time');
+                      const isRatio = group.name.toLowerCase().includes('ratio') || group.name.toLowerCase().includes('compression');
                       const isAll = selectedAttemptIndex === -1;
 
                       // Special data handling for Rhythm
@@ -884,7 +887,15 @@ export default function SessionDetailPage() {
                       const xKey = (isRhythm && isAll) ? 'rep_number' : 'frame';
                       const yKey = (isRhythm && isAll) ? 'duration_seconds' : group.joints[0];
                       const xLabel = (isRhythm && isAll) ? 'Rep Number' : 'Movement Frame';
-                      const yLabel = isRhythm ? 'Pace / Time (s)' : 'Angle (Deg)';
+                      const yLabel = isRhythm
+                        ? 'Pace / Time (s)'
+                        : isHeight
+                          ? 'Height (cm)'
+                          : isFlightTime
+                            ? 'Flight Time (ms)'
+                            : isRatio
+                              ? 'Ratio'
+                              : 'Angle (Deg)';
 
                       return (
                         <motion.div
@@ -898,7 +909,11 @@ export default function SessionDetailPage() {
                             <div>
                               <h3 className="text-lg font-bold text-fg capitalize">{group.name}</h3>
                               <p className="kicker text-[10px] text-fg-mute">
-                                {isRhythm ? 'Rhythm & Consistency' : (group.isBilateral ? 'Bilateral Comparison' : 'Mechanical Range')}
+                                {isRhythm
+                                  ? 'Rhythm & Consistency'
+                                  : isHeight
+                                    ? 'Vertical Displacement'
+                                    : (group.isBilateral ? 'Bilateral Comparison' : 'Mechanical Range')}
                               </p>
                             </div>
                             <div className="flex items-center gap-3">
