@@ -1447,6 +1447,20 @@ const ALL_MASTER_METRICS = [
           '• Beginner: >= 350 ms (~15 cm jump).\n' +
           '• Intermediate: >= 535 ms (~35 cm jump).\n' +
           '• Advanced: >= 640 ms (~50 cm jump).'
+  },
+  {
+    key: 'LIVE_JUMP_HEIGHT',
+    name: 'Live Jump Height',
+    category: 'Athletic Performance',
+    min: 0,
+    max: 120,
+    step: 1,
+    default_val: 0,
+    dir: 'asc',
+    desc: 'Instantaneous vertical displacement of hips/center of mass above standing baseline in centimeters. Measures real-time height (0 cm at ground, rising to peak in air, returning to 0 cm upon landing).\n\n' +
+          '• Ground / Standing: ~0 cm.\n' +
+          '• Airborne Flight: >= 15 cm.\n' +
+          '• Touchdown / Landing: <= 5 cm.'
   }
 ];
 

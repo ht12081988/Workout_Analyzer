@@ -1408,6 +1408,25 @@ export class DynamicRule implements IExerciseRule {
         const peakHeightCm = Math.max(liveHeightCm, state.peakJumpHeightThisRep ?? 0);
         return Math.round(peakHeightCm * 10) / 10;
       }
+      case 'LIVE_JUMP_HEIGHT': {
+        const initialHipY = state.initialHipY ?? null;
+        const baseTorsoHeight = state.baseTorsoHeight ?? null;
+        if (initialHipY === null || !baseTorsoHeight || baseTorsoHeight <= 0.05) {
+          return 0;
+        }
+
+        const lHip = pose[POSE_LANDMARKS.LEFT_HIP] || pose['LEFT_HIP'];
+        const rHip = pose[POSE_LANDMARKS.RIGHT_HIP] || pose['RIGHT_HIP'];
+        if (!lHip && !rHip) {
+          return 0;
+        }
+
+        const currentHipY = (lHip && rHip) ? (lHip.y + rHip.y) / 2 : (lHip ? lHip.y : rHip!.y);
+        // Standard adult human torso height (shoulder to hip) is ~52cm
+        const cmPerPixel = 52.0 / baseTorsoHeight;
+        const liveHeightCm = Math.max(0, (initialHipY - currentHipY) * cmPerPixel);
+        return Math.round(liveHeightCm * 10) / 10;
+      }
       case 'JUMP_FLIGHT_TIME': {
         return Math.round(state.flightTimeMs ?? 0);
       }

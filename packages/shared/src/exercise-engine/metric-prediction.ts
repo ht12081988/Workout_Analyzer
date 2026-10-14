@@ -244,7 +244,7 @@ export function predictMetricOperatorAndBuffer(
     } else if (delta < -3.0) {
       // Landing downward
       const buffer = 5.0;
-      const targetValue = Math.max(0, Number((currentValue + buffer).toFixed(1)));
+      const targetValue = Math.max(5.0, Number((currentValue + buffer).toFixed(1)));
       return {
         metric,
         prevValue: Number(prevValue.toFixed(1)),
@@ -254,13 +254,15 @@ export function predictMetricOperatorAndBuffer(
         targetValue,
         buffer,
         movementType: 'flexion',
-        explanation: `Jump height descended to ${currentValue.toFixed(1)} cm (operator '<' with +${buffer} cm buffer)`,
+        explanation: `Jump height descended to ${currentValue.toFixed(1)} cm (operator '<' with target ${targetValue} cm)`,
         isSignificantChange
       };
     } else {
       const isAirborne = currentValue >= 10.0;
       const operator = isAirborne ? '>' : '<';
-      const targetValue = isAirborne ? Math.max(0, Number((currentValue - 3.0).toFixed(1))) : Number(currentValue.toFixed(1));
+      const targetValue = isAirborne 
+        ? Math.max(0, Number((currentValue - 3.0).toFixed(1))) 
+        : Math.max(5.0, Number((currentValue + 3.0).toFixed(1)));
       return {
         metric,
         prevValue: Number(prevValue.toFixed(1)),
@@ -272,7 +274,7 @@ export function predictMetricOperatorAndBuffer(
         movementType: 'neutral',
         explanation: isAirborne 
           ? `Airborne apex at ${currentValue.toFixed(1)} cm (operator '>' with -3 cm buffer)`
-          : `Ground level height (${currentValue.toFixed(1)} cm)`,
+          : `Ground level height (operator '<' with ${targetValue} cm ground tolerance)`,
         isSignificantChange: isAirborne
       };
     }
