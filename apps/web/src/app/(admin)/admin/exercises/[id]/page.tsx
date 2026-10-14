@@ -10,7 +10,8 @@ import { MetricSelectionPanel } from '../builder/components/MetricSelectionPanel
 import {
   DynamicRule,
   PoseData,
-  predictMetricOperatorAndBuffer
+  predictMetricOperatorAndBuffer,
+  buildExtractionContext
 } from '@workout/shared';
 
 export default function EditExerciseRulesPage() {
@@ -294,7 +295,21 @@ export default function EditExerciseRulesPage() {
       prevLabel = 'Start of Video';
     }
 
-    const mockState = { timeMs: currentTimeMs, baseTorsoHeight: 0.5 };
+    // Find setup marker if available to calibrate baseline standing pose
+    const setupMarker = markers.find(m => phasesConfig[m.id]?.isSetupPhase || m.label.toLowerCase().includes('setup') || m.label.toLowerCase().includes('stand'));
+    let setupPose: PoseData | null = null;
+    if (setupMarker) {
+      let minDiff = Infinity;
+      for (const f of telemetry) {
+        const diff = Math.abs(f.timeMs - setupMarker.timeMs);
+        if (diff < minDiff) {
+          minDiff = diff;
+          setupPose = f.pose;
+        }
+      }
+    }
+
+    const mockState = buildExtractionContext(telemetry, currentTimeMs, setupPose || prevPose);
     const generatedRules: RuleConfig[] = [];
     const summaryLines: string[] = [];
 
@@ -313,7 +328,7 @@ export default function EditExerciseRulesPage() {
 
       const mMeta = availableMetrics.find(m => m.metric_key === key);
       const name = mMeta?.metric_name || mMeta?.name || key;
-      const unit = key.includes('RATIO') ? '' : '°';
+      const unit = key.includes('RATIO') || key.includes('FACTOR') ? '' : (key.includes('HEIGHT') ? ' cm' : (key.includes('TIME') ? ' ms' : '°'));
       summaryLines.push(`• ${name}: ${pred.operator} ${pred.targetValue}${unit} (${pred.movementType})`);
     }
 
@@ -881,6 +896,7 @@ export default function EditExerciseRulesPage() {
           previousPose={previousExtractPose}
           previousPhaseName={previousMarkerLabel}
           onApply={handleApplyExtractedMetrics}
+          telemetry={telemetry}
         />
       )}
     </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { PoseData, DynamicRule, predictMetricOperatorAndBuffer } from '@workout/shared';
+import { PoseData, DynamicRule, predictMetricOperatorAndBuffer, buildExtractionContext } from '@workout/shared';
 import { RuleConfig } from './PhaseConfigurator';
 
 export interface MetricItem {
@@ -25,6 +25,7 @@ interface MetricExtractModalProps {
   previousPose?: PoseData | null;
   previousPhaseName?: string;
   onApply: (rules: RuleConfig[], targetType: 'entry' | 'formCheck') => void;
+  telemetry?: Array<{ frameIndex: number; timeMs: number; pose: PoseData }>;
 }
 
 export const MetricExtractModal: React.FC<MetricExtractModalProps> = ({
@@ -36,7 +37,8 @@ export const MetricExtractModal: React.FC<MetricExtractModalProps> = ({
   currentPose,
   previousPose,
   previousPhaseName,
-  onApply
+  onApply,
+  telemetry
 }) => {
   const [targetType, setTargetType] = useState<'entry' | 'formCheck'>('entry');
   const [selectedKeys, setSelectedKeys] = useState<Record<string, boolean>>({});
@@ -53,7 +55,16 @@ export const MetricExtractModal: React.FC<MetricExtractModalProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${millis}`;
   };
 
-  const mockState = { timeMs: currentTimeMs, baseTorsoHeight: 0.5 };
+  const getMetricUnit = (key: string) => {
+    if (key.includes('RATIO') || key.includes('FACTOR')) return '';
+    if (key.includes('HEIGHT')) return ' cm';
+    if (key.includes('TIME')) return ' ms';
+    return '°';
+  };
+
+  const mockState = useMemo(() => {
+    return buildExtractionContext(telemetry || [], currentTimeMs, previousPose);
+  }, [telemetry, currentTimeMs, previousPose]);
 
   // Calculate telemetry and prediction for all available metrics
   const analyzedMetrics = useMemo(() => {
@@ -257,7 +268,7 @@ export const MetricExtractModal: React.FC<MetricExtractModalProps> = ({
                       <span className={`text-xs font-black tabular-nums ${
                         item.delta < -5 ? 'text-emerald-400' : item.delta > 5 ? 'text-amber-400' : 'text-white/40'
                       }`}>
-                        {item.delta > 0 ? `+${item.delta}°` : `${item.delta}°`}
+                        {item.delta > 0 ? `+${item.delta}${getMetricUnit(item.metric_key)}` : `${item.delta}${getMetricUnit(item.metric_key)}`}
                       </span>
                       <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">
                         {item.pred.movementType}
@@ -269,9 +280,9 @@ export const MetricExtractModal: React.FC<MetricExtractModalProps> = ({
                   <div className="bg-black/40 border border-white/10 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-white/40 font-medium">Trajectory:</span>
-                      <span className="font-bold text-white/70 tabular-nums">{item.prevVal}°</span>
+                      <span className="font-bold text-white/70 tabular-nums">{item.prevVal}{getMetricUnit(item.metric_key)}</span>
                       <span className="text-white/30">➔</span>
-                      <span className="font-black text-white tabular-nums">{item.currVal}°</span>
+                      <span className="font-black text-white tabular-nums">{item.currVal}{getMetricUnit(item.metric_key)}</span>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -299,7 +310,7 @@ export const MetricExtractModal: React.FC<MetricExtractModalProps> = ({
                       {/* Target value input with buffer applied */}
                       <input
                         type="number"
-                        step={item.metric_key.includes('RATIO') ? 0.01 : 0.5}
+                        step={item.metric_key.includes('RATIO') ? 0.01 : (item.metric_key.includes('TIME') ? 10 : 0.5)}
                         value={val}
                         onChange={(e) => {
                           setValueOverrides(prev => ({
@@ -310,7 +321,7 @@ export const MetricExtractModal: React.FC<MetricExtractModalProps> = ({
                         className="w-20 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs font-black text-white text-right tabular-nums focus:outline-none focus:border-cyan-400"
                       />
                       <span className="text-xs text-white/40 font-bold">
-                        {item.metric_key.includes('RATIO') ? '' : '°'}
+                        {getMetricUnit(item.metric_key)}
                       </span>
                     </div>
                   </div>
